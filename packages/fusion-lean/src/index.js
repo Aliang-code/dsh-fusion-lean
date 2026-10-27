@@ -27,16 +27,19 @@ export const name = 'dsh-fusion-lean'
 export const inject = ['tools']
 
 /**
- * Deployment-varying tunables. Declaring this schema makes the row editable from
- * the harness' own plugin settings instead of only from `cordis.patch.yml`.
- * `url`, when set, wins over host/port/path.
+ * Deployment-varying tunables, editable from the harness' own settings form
+ * instead of only from `cordis.patch.yml`.
+ *
+ * Every field is `.volatile()`: the settings surface renders only volatile
+ * fields, and a plain field leaves the row's form empty. `url`, when set, wins
+ * over host/port/path.
  */
 export const Config = z.object({
-  host: z.string().default('127.0.0.1'),
-  port: z.number().step(1).min(1).max(65535).default(27182),
-  path: z.string().default('/mcp'),
-  url: z.string(),
-  toolCallTimeoutMs: z.number().step(1).min(1).default(120000),
+  host: z.string().default('127.0.0.1').volatile(),
+  port: z.number().step(1).min(1).max(65535).default(27182).volatile(),
+  path: z.string().default('/mcp').volatile(),
+  url: z.string().volatile(),
+  toolCallTimeoutMs: z.number().step(1).min(1).default(120000).volatile(),
 })
 
 const DEFAULT_CONFIG = { ...DEFAULT_ENDPOINT, toolCallTimeoutMs: 120000 }
