@@ -9,8 +9,9 @@
  * fallback when the server cannot be reached at all.
  */
 
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
+
+export { schemaDigest } from './digest.js'
 
 const PACKAGE = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 
@@ -21,18 +22,13 @@ async function loadSdk() {
   } catch (error) {
     throw new Error(
       `cannot load "@modelcontextprotocol/client" (${error instanceof Error ? error.message : String(error)}); ` +
-        'it is declared as a peer dependency and must be installed next to this bundle',
+        'it is declared as a dependency and must be installed with this bundle',
     )
   }
   if (typeof sdk.Client !== 'function' || typeof sdk.StreamableHTTPClientTransport !== 'function') {
     throw new Error('"@modelcontextprotocol/client" does not export Client and StreamableHTTPClientTransport')
   }
   return sdk
-}
-
-/** Stable hash of one input schema, for drift comparison against the snapshot. */
-export function schemaDigest(schema) {
-  return createHash('sha256').update(JSON.stringify(schema ?? null)).digest('hex')
 }
 
 function describe(error) {

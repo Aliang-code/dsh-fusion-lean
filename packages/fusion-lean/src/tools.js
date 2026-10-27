@@ -26,12 +26,12 @@ export const PUBLIC_TOOLS = [...PUBLIC_TO_RAW.keys()]
  */
 export const SHORT = {
   fusion_read:
-    'Read the active Fusion design. `entity_type` returns rows of one class ' +
-    '(Board, Package, Part, Element, Net, Signal, Pin, Smd, Via, ...); `queryType` selects a ' +
-    'different query instead - apiDocumentation, licensing, screenshot (PNG of the graphics ' +
-    'view), document (search/open/recent), projects, activeCommand. `object` holds ' +
-    'fields/filters/pagination; omit it for every row and column. Per-class property lists, ' +
-    'filter operators and worked examples: fusion_help({tool:"fusion_read"}).',
+    'Read the active Fusion design and its metadata. `queryType` is required and selects the read: ' +
+    'licensing (signed-in entitlements, purchasable extensions, flex tokens), screenshot (PNG of the ' +
+    'graphics view; width/height/direction/antiAliasing/transparentBackground), document ' +
+    '(search/open/recent; name/operation/project/filter), projects, apiDocumentation ' +
+    '(searchPattern/apiCategory/filter), activeCommand. Full parameter and predicate text: ' +
+    'fusion_help({tool:"fusion_read"}).',
   fusion_execute:
     'Act on the active Fusion design. featureType "script" runs a Python body defining ' +
     '`run(_context)` inside Fusion (pass readOnly:true only when it changes nothing); ' +

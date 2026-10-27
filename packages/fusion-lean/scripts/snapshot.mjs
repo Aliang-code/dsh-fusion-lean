@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Re-capture the capability contract from a running Fusion endpoint.
  *
  * Writes `assets/fusion-tools.json` as `{ capturedAt, serverInfo, tools[] }`
@@ -9,15 +9,13 @@
  *   node scripts/snapshot.mjs [url]
  */
 
-import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 
 import { handshake } from './mcp.mjs'
+import { schemaDigest } from '../src/digest.js'
 
 const url = process.argv[2] ?? 'http://127.0.0.1:27182/mcp'
 const target = new URL('../assets/fusion-tools.json', import.meta.url)
-
-const digest = (schema) => createHash('sha256').update(JSON.stringify(schema ?? null)).digest('hex')
 
 const { serverInfo, tools } = await handshake(url)
 if (tools.length === 0) {
@@ -33,7 +31,7 @@ const snapshot = {
     description: tool.description ?? '',
     inputSchema: tool.inputSchema ?? {},
     ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
-    digest: digest(tool.inputSchema),
+    digest: schemaDigest(tool.inputSchema),
   })),
 }
 
@@ -42,3 +40,4 @@ writeFileSync(target, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8')
 const total = snapshot.tools.reduce((sum, tool) => sum + Buffer.byteLength(tool.description ?? ''), 0)
 console.log(`snapshot: ${snapshot.tools.length} tools from ${serverInfo?.name ?? 'unknown'} ${serverInfo?.version ?? ''}`)
 console.log(`snapshot: description bytes ${total}; written to ${target.pathname}`)
+
