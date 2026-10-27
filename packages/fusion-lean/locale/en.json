@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Fusion Lean MCP",
+    "description": "Fusion modelling through its own MCP server, with schemas kept intact and upstream docs loaded on demand."
+  }
+}

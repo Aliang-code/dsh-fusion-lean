@@ -1,0 +1,12 @@
+{
+  "name": "dsh-fusion-mcp-plugin",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DSH 的 Fusion 建模接入：A 层瘦身连接器 + B 层 hf CLI 工具",
+  "type": "module",
+  "scripts": {
+    "measure": "node packages/fusion-lean/scripts/measure.mjs",
+    "probe": "node packages/fusion-lean/scripts/probe.mjs",
+    "snapshot": "node packages/fusion-lean/scripts/snapshot.mjs"
+  }
+}

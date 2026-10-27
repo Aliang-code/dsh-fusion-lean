@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Fusion 精简接入",
+    "description": "通过 Fusion 自带的 MCP 服务建模：参数结构原样保留，上游说明按需加载。"
+  }
+}

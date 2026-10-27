@@ -1,0 +1,34 @@
+{
+  "name": "@local/dsh-fusion-lean",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Fusion MCP facade for DSH: the upstream four tools with their exact schemas, short always-on descriptions, upstream docs on demand, lazy reconnect, and a one-shot gate on irreversible actions.",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "assets",
+    "locale",
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "@deepseek-ai/dsh-mcp-client": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
+    "@deepseek-ai/schemastery": "~3.18.4",
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "engines": {
+    "dsh": ">=0.2.0-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "meta": {
+    "title": "Fusion Lean MCP",
+    "description": "Fusion 建模的精简接入：schema 原样保留，常驻描述按需加载，Fusion 未启动不再静默。"
+  }
+}

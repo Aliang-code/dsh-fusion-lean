@@ -1,0 +1,8 @@
+- insert:
+    - id: fusion-lean
+      name: '@local/dsh-fusion-lean'
+      config:
+        host: 127.0.0.1
+        port: 27182
+        path: /mcp
+        toolCallTimeoutMs: 120000
