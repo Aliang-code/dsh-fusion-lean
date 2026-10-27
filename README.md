@@ -59,6 +59,12 @@ B 层需要在 `cordis.patch.yml` 里给出 `harnessRoot`（安装时由 bundle 
 
 `url` 优先级最高；`host`/`port`/`path` 用来拼 `http://host:port/path`。改完不需要重写代码，也不需要重启 —— 配置变更按 Loader 的正常路径重新激活该行。
 
+改端口有两条路：
+
+1. **插件设置页**：侧栏「插件」→ 本包 → 该行页面里的五个字段（host / port / path / url / timeout），保存即写回 profile 并重载本行。表单由本包的 client 半区渲染——DSH 目前不会按 schema 自动生成表单（`dsh-settings`：`autoGenerate`「目前没有已发布的客户端这样做」）。
+2. **直接编辑** `cordis.patch.yml` 里该行的 `config`，效果相同。
+
+
 ## 安全边界（安装前请读完）
 
 - **`fusion_execute` 能在你的 Fusion 进程里运行任意 Python**，拥有你的用户权限：可以删改模型、读写本机文件、发网络请求。它不在 DSH 的文件/命令沙箱内。
