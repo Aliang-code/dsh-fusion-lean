@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-fusion-lean",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "description": "Fusion MCP facade for DSH: the upstream four tools with their exact schemas, short always-on descriptions, upstream docs on demand, lazy reconnect, and a one-shot gate on irreversible actions.",
@@ -14,10 +14,12 @@
     "cordis.patch.yml"
   ],
   "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "peerDependencies": {
     "@deepseek-ai/dsh-mcp-client": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "~3.18.4",
-    "@modelcontextprotocol/client": "2.0.0"
+    "@deepseek-ai/schemastery": "~3.18.4"
   },
   "engines": {
     "dsh": ">=0.2.0-rc.2"
