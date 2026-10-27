@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import z from '@deepseek-ai/schemastery'
 
 import { createConnection, schemaDigest } from './connection.js'
+import { registerConfigRoute } from './config-route.js'
 import { DEFAULT_ENDPOINT, resolveEndpoint } from './endpoint.js'
 import { registerGuard } from './guard.js'
 import {
@@ -118,6 +119,8 @@ export async function apply(ctx, rowConfig) {
   }
 
   const disposers = registerUpstreamTools(ctx, adapter, connection, snapshot)
+  const disposeConfigRoute = registerConfigRoute(ctx, () => config)
+  if (disposeConfigRoute !== undefined) disposers.push(disposeConfigRoute)
   disposers.push(ctx.tools.register(buildHelpTool(snapshot)))
   disposers.push(
     ctx.tools.register(
