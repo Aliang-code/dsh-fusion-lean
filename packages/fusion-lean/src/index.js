@@ -14,7 +14,7 @@ import z from '@deepseek-ai/schemastery'
 
 import { createConnection, schemaDigest } from './connection.js'
 import { registerConfigRoute } from './config-route.js'
-import { DEFAULT_ENDPOINT, resolveEndpoint } from './endpoint.js'
+import { DEFAULT_ENDPOINT, readConfig, resolveEndpoint } from './endpoint.js'
 import { registerGuard } from './guard.js'
 import {
   buildDoctorTool,
@@ -63,9 +63,9 @@ async function loadAdapter() {
 }
 
 export async function apply(ctx, rowConfig) {
-  const config = { ...DEFAULT_CONFIG, ...(rowConfig ?? {}) }
+  const config = readConfig({ ...DEFAULT_CONFIG, ...(rowConfig ?? {}) })
   const endpoint = resolveEndpoint(config)
-  const runtime = { url: endpoint, toolCallTimeoutMs: config.toolCallTimeoutMs }
+  const runtime = { url: endpoint, toolCallTimeoutMs: config.toolCallTimeoutMs ?? DEFAULT_CONFIG.toolCallTimeoutMs }
   const snapshot = loadSnapshot()
   const digests = new Map(snapshot.tools.map((tool) => [tool.name, schemaDigest(tool.inputSchema)]))
   const drift = { checked: false, changed: [], missing: [] }
@@ -119,8 +119,53 @@ export async function apply(ctx, rowConfig) {
   }
 
   const disposers = registerUpstreamTools(ctx, adapter, connection, snapshot)
-  const disposeConfigRoute = registerConfigRoute(ctx, () => config)
-  if (disposeConfigRoute !== undefined) disposers.push(disposeConfigRoute)
+
+  // Filled once the client graph is readable, then served by the settings route:
+  // when the row does not appear, this is the difference between "never composed
+  // into the browser bundle" and "composed but failed inside the page".
+  const graphInfo = { ids: null, error: null }
+
+  // The settings route needs two services the tools do not. Register it in a
+  // child context that waits for them, inside a guard: a deployment without a
+  // web server must still get every tool.
+  const attachSettingsRoute = (child) => {
+    try {
+      const dispose = registerConfigRoute(child, () => config, graphInfo)
+      child.effect(() => dispose, 'fusion-lean: settings route')
+      ctx.logger?.info?.('fusion-lean: settings route mounted at /fusion-lean/config')
+    } catch (error) {
+      ctx.logger?.warn?.(`fusion-lean: settings route unavailable: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  try {
+    if (typeof ctx.inject === 'function') ctx.inject(['webServer', 'configEditor'], attachSettingsRoute)
+    else ctx.logger?.warn?.('fusion-lean: this host has no ctx.inject; the settings route is skipped')
+  } catch (error) {
+    ctx.logger?.warn?.(`fusion-lean: cannot request webServer/configEditor: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  // One line of proof that the browser half reached the client graph: when the
+  // settings row is missing, this is the difference between "never composed" and
+  // "composed but failed in the page".
+  try {
+    ctx.inject(['clientModules'], (child) => {
+      try {
+        const graph = child.clientModules.graph()
+        const entries = Array.isArray(graph?.entries) ? graph.entries : []
+        graphInfo.ids = entries.map((entry) => entry?.id ?? entry?.name ?? '?')
+        graphInfo.batches = Array.isArray(graph?.batches) ? graph.batches.map((batch) => batch?.phase ?? '?') : null
+        graphInfo.error = null
+        ctx.logger?.info?.(`fusion-lean: client graph entries=${JSON.stringify(graphInfo.ids).slice(0, 700)}`)
+      } catch (error) {
+        graphInfo.error = error instanceof Error ? error.message : String(error)
+        ctx.logger?.warn?.(`fusion-lean: cannot read the client graph: ${graphInfo.error}`)
+      }
+    })
+  } catch (error) {
+    graphInfo.error = error instanceof Error ? error.message : String(error)
+    ctx.logger?.warn?.(`fusion-lean: cannot request clientModules: ${graphInfo.error}`)
+  }
+
   disposers.push(ctx.tools.register(buildHelpTool(snapshot)))
   disposers.push(
     ctx.tools.register(

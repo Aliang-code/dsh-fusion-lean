@@ -11,13 +11,30 @@
 window.__ModuleLoader__.load({
   id: '@local/dsh-fusion-lean',
   factory: (require) => {
-    const module = { exports: {} }
     const React = require('react')
 
-    const ROW_KEY = '@local/dsh-fusion-lean#fusion-lean'
+    const ROW_ID = 'fusion-lean-endpoint'
     const ROUTE = '/fusion-lean/config'
+    const STATUS_ROUTE = '/fusion-lean/client-status'
     const NS = 'fusion-lean'
     const inject = ['slots', 'locale']
+
+    // The browser console is not reachable from the host, so the module reports
+    // its own boot state to a loopback-only route. Without this, "no row" cannot
+    // be told apart from "module never loaded".
+    const beacon = (stage, message) => {
+      if (typeof fetch !== 'function') return
+      try {
+        fetch(STATUS_ROUTE, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ stage, ...(message === undefined ? {} : { message }) }),
+        }).catch(() => {})
+      } catch {
+        // reporting must never break the page
+      }
+    }
+    beacon('loaded')
 
     const fields = [
       { key: 'host', label: 'host', kind: 'text', hint: '127.0.0.1' },
@@ -34,7 +51,7 @@ window.__ModuleLoader__.load({
         'config.endpoint': '当前端点',
         'config.save': '保存',
         'config.saving': '保存中…',
-        'config.saved': '已保存，正在重载',
+        'config.saved': '已保存（重启 DSH 后生效）',
         'config.loading': '读取中…',
         'config.error': '无法读取或保存配置',
       },
@@ -44,7 +61,7 @@ window.__ModuleLoader__.load({
         'config.endpoint': 'Current endpoint',
         'config.save': 'Save',
         'config.saving': 'Saving…',
-        'config.saved': 'Saved, reloading',
+        'config.saved': 'Saved — restart DSH to apply',
         'config.loading': 'Loading…',
         'config.error': 'Could not read or save the configuration',
       },
@@ -171,16 +188,21 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register(NS, dictionaries), 'fusion-lean: settings dictionaries')
-      ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
-        name: 'plugins.row.config',
-        key: ROW_KEY,
-        locale: NS,
-      }, EndpointRow))
+      try {
+        ctx.effect(() => ctx.locale.register(NS, dictionaries), 'fusion-lean: settings dictionaries')
+        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+          name: 'settings.general.item',
+          id: ROW_ID,
+          order: 110,
+          locale: NS,
+        }, EndpointRow))
+        beacon('applied')
+      } catch (error) {
+        beacon('error', error instanceof Error ? `${error.name}: ${error.message}` : String(error))
+        throw error
+      }
     }
 
-    module.exports.apply = apply
-    module.exports.inject = inject
-    return module.exports
+    return { inject, apply }
   },
 })

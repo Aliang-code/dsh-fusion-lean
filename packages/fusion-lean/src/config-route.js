@@ -11,6 +11,7 @@
 import { resolveEndpoint } from './endpoint.js'
 
 const ROUTE_PATH = '/fusion-lean/config'
+const CLIENT_STATUS_PATH = '/fusion-lean/client-status'
 const MAX_BODY = 8 * 1024
 
 const FIELDS = ['host', 'port', 'path', 'url', 'toolCallTimeoutMs']
@@ -74,14 +75,44 @@ function normalize(field, value) {
 }
 
 /**
- * Register the settings route. Both services are looked up optionally: the tools
- * keep working in a deployment without a web server or a config editor, and the
- * route only appears where it can actually persist.
+ * Register the settings route on a context that already has `webServer` and
+ * `configEditor` (call it from inside `ctx.inject([...])`, so a deployment
+ * without either simply never registers the route and the tools keep working).
+ *
+ * A second route collects the browser half's own boot report: when the settings
+ * row does not appear, the only question worth asking is "did the module load at
+ * all", and the browser console is not reachable from here.
  */
-export function registerConfigRoute(ctx, getConfig) {
-  const webServer = ctx.get?.('webServer')
-  const configEditor = ctx.get?.('configEditor')
-  if (webServer === undefined || configEditor === undefined) return undefined
+export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
+  const webServer = ctx.webServer
+  const configEditor = ctx.configEditor
+  let clientReport = null
+
+  const disposeClientStatus = webServer.register({
+    kind: 'exact',
+    path: CLIENT_STATUS_PATH,
+    handler: async (req, res) => {
+      if (!isLoopback(req)) {
+        send(res, 403, { ok: false, error: 'loopback only' })
+        return
+      }
+      if (req.method === 'GET') {
+        send(res, 200, { ok: true, client: clientReport, graph: graphInfo })
+        return
+      }
+      try {
+        const body = JSON.parse((await readBody(req)) || '{}')
+        clientReport = {
+          stage: typeof body.stage === 'string' ? body.stage : 'unknown',
+          message: typeof body.message === 'string' ? body.message.slice(0, 500) : null,
+          at: new Date().toISOString(),
+        }
+        send(res, 200, { ok: true })
+      } catch (error) {
+        send(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  })
 
   const dispose = webServer.register({
     kind: 'exact',
@@ -126,5 +157,8 @@ export function registerConfigRoute(ctx, getConfig) {
       }
     },
   })
-  return () => dispose()
+  return () => {
+    dispose()
+    disposeClientStatus()
+  }
 }
