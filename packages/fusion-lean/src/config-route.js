@@ -8,13 +8,30 @@
  * edits through `configEditor`, which applies them via the normal Loader path.
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { resolveEndpoint } from './endpoint.js'
 
 const ROUTE_PATH = '/fusion-lean/config'
 const CLIENT_STATUS_PATH = '/fusion-lean/client-status'
+const WORKSPACE_PATH = '/fusion-lean/workspace'
 const MAX_BODY = 8 * 1024
 
 const FIELDS = ['host', 'port', 'path', 'url', 'toolCallTimeoutMs']
+
+/** What a workspace needs to be usable by the `fusion-harness` row. */
+function inspectWorkspace(root) {
+  if (typeof root !== 'string' || root.trim().length === 0) {
+    return { configured: false, exists: false, hasScript: false }
+  }
+  const clean = root.trim()
+  return {
+    configured: true,
+    exists: existsSync(clean),
+    hasScript: existsSync(join(clean, 'tools', 'hf.py')),
+  }
+}
 
 function isLoopback(req) {
   const address = req.socket?.remoteAddress ?? ''
@@ -114,6 +131,65 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
     },
   })
 
+  // The `fusion-harness` row belongs to another plugin instance, so its value is
+  // read from that entry's resolved fiber config and written as a profile override
+  // keyed by the same entry id. That is how someone else points the hf tools at
+  // their own workspace without editing YAML by hand.
+  const harnessEntry = () =>
+    configEditor.entries().find((row) => row.options?.id === 'fusion-harness' || row.options?.id === 'include:fusion-harness')
+
+  const readWorkspace = () => {
+    const live = harnessEntry()?.fiber?.config ?? {}
+    return {
+      harnessRoot: typeof live.harnessRoot === 'string' ? live.harnessRoot : '',
+      python: typeof live.python === 'string' && live.python.length > 0 ? live.python : 'python',
+    }
+  }
+
+  const disposeWorkspace = webServer.register({
+    kind: 'exact',
+    path: WORKSPACE_PATH,
+    handler: async (req, res) => {
+      if (!isLoopback(req)) {
+        send(res, 403, { ok: false, error: 'loopback only' })
+        return
+      }
+      if (req.method === 'GET') {
+        const config = readWorkspace()
+        send(res, 200, { ok: true, config, checks: inspectWorkspace(config.harnessRoot) })
+        return
+      }
+      if (req.method !== 'POST') {
+        send(res, 405, { ok: false, error: 'GET or POST' })
+        return
+      }
+      try {
+        const body = JSON.parse((await readBody(req)) || '{}')
+        if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new Error('body must be an object')
+        const harnessRoot = typeof body.harnessRoot === 'string' ? body.harnessRoot.trim() : ''
+        const python = typeof body.python === 'string' && body.python.trim().length > 0 ? body.python.trim() : undefined
+        const checks = inspectWorkspace(harnessRoot)
+        if (harnessRoot.length > 0 && !checks.hasScript) {
+          throw new Error(
+            checks.exists
+              ? `no tools/hf.py under ${harnessRoot} — this must be the fusion-harness workspace root`
+              : `${harnessRoot} does not exist`,
+          )
+        }
+        const entry = harnessEntry()
+        if (entry === undefined) throw new Error('the fusion-harness row is not an entry that can be persisted')
+        await configEditor.edit(entry, (raw) => ({
+          ...raw,
+          harnessRoot,
+          ...(python === undefined ? {} : { python }),
+        }))
+        send(res, 200, { ok: true, config: { harnessRoot, python: python ?? readWorkspace().python }, checks })
+      } catch (error) {
+        send(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  })
+
   const dispose = webServer.register({
     kind: 'exact',
     path: ROUTE_PATH,
@@ -160,5 +236,6 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
   return () => {
     dispose()
     disposeClientStatus()
+    disposeWorkspace()
   }
 }

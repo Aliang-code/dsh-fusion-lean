@@ -16,6 +16,7 @@ window.__ModuleLoader__.load({
     const ROW_ID = 'fusion-lean-endpoint'
     const ROUTE = '/fusion-lean/config'
     const STATUS_ROUTE = '/fusion-lean/client-status'
+    const WORKSPACE_ROUTE = '/fusion-lean/workspace'
     const NS = 'fusion-lean'
     const inject = ['slots', 'locale']
 
@@ -59,6 +60,16 @@ window.__ModuleLoader__.load({
         'config.saved': '已保存（重启 DSH 后生效）',
         'config.loading': '读取中…',
         'config.error': '无法读取或保存配置',
+        'workspace.title': 'Fusion 工作区',
+        'workspace.help': 'hf_* 工具（probe / build / flat / verify）需要 fusion-harness 工作区的根目录。留空则只启用 MCP 工具面。',
+        'workspace.placeholder': 'D:\\work\\fusion-harness',
+        'workspace.save': '保存',
+        'workspace.saving': '保存中…',
+        'workspace.saved': '已保存（重启 DSH 后生效）',
+        'workspace.unset': '未配置：仅 MCP 工具可用',
+        'workspace.ok': '已找到 tools/hf.py',
+        'workspace.missing': '该目录下没有 tools/hf.py',
+        'workspace.error': '无法读取或保存工作区',
       },
       en: {
         'config.title': 'Fusion MCP endpoint',
@@ -73,6 +84,16 @@ window.__ModuleLoader__.load({
         'config.saved': 'Saved — restart DSH to apply',
         'config.loading': 'Loading…',
         'config.error': 'Could not read or save the configuration',
+        'workspace.title': 'Fusion workspace',
+        'workspace.help': 'The hf_* tools (probe / build / flat / verify) need the root of a fusion-harness workspace. Leave it empty to enable the MCP tools only.',
+        'workspace.placeholder': '/home/you/fusion-harness',
+        'workspace.save': 'Save',
+        'workspace.saving': 'Saving…',
+        'workspace.saved': 'Saved — restart DSH to apply',
+        'workspace.unset': 'Not configured: MCP tools only',
+        'workspace.ok': 'tools/hf.py found',
+        'workspace.missing': 'no tools/hf.py under that path',
+        'workspace.error': 'Could not read or save the workspace',
       },
     }
 
@@ -218,6 +239,84 @@ window.__ModuleLoader__.load({
       )
     }
 
+    function WorkspaceRow(props) {
+      const t = typeof props.t === 'function' ? props.t : (key) => key
+      const [draft, setDraft] = React.useState('')
+      const [python, setPython] = React.useState('python')
+      const [status, setStatus] = React.useState({ status: 'loading', checks: null, error: '' })
+      const [busy, setBusy] = React.useState(false)
+      const [notice, setNotice] = React.useState('')
+
+      const load = React.useCallback(async () => {
+        try {
+          const response = await fetch(WORKSPACE_ROUTE, { headers: { accept: 'application/json' } })
+          const body = await response.json()
+          if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
+          setDraft(body.config.harnessRoot ?? '')
+          setPython(body.config.python ?? 'python')
+          setStatus({ status: 'ready', checks: body.checks, error: '' })
+        } catch (error) {
+          setStatus({ status: 'error', checks: null, error: error instanceof Error ? error.message : String(error) })
+        }
+      }, [])
+
+      React.useEffect(() => {
+        void load()
+      }, [load])
+
+      const save = React.useCallback(async () => {
+        setBusy(true)
+        setNotice('')
+        try {
+          const response = await fetch(WORKSPACE_ROUTE, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json' },
+            body: JSON.stringify({ harnessRoot: draft, python }),
+          })
+          const body = await response.json()
+          if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
+          setStatus({ status: 'ready', checks: body.checks, error: '' })
+          setNotice(t('workspace.saved'))
+        } catch (error) {
+          setStatus((current) => ({ ...current, status: 'error', error: error instanceof Error ? error.message : String(error) }))
+        } finally {
+          setBusy(false)
+        }
+      }, [draft, python, t])
+
+      const summary = () => {
+        const checks = status.checks
+        if (checks === null || checks === undefined) return ''
+        if (checks.configured !== true) return t('workspace.unset')
+        return checks.hasScript === true ? t('workspace.ok') : t('workspace.missing')
+      }
+
+      return React.createElement(
+        'div',
+        { style: box },
+        React.createElement('div', { style: title }, t('workspace.title')),
+        React.createElement('p', { style: help }, t('workspace.help')),
+        React.createElement(
+          'div',
+          { style: rowStyle },
+          React.createElement('input', {
+            style: { ...inputStyle, flex: '1', minWidth: '240px' },
+            type: 'text',
+            placeholder: t('workspace.placeholder'),
+            value: draft,
+            onChange: (event) => setDraft(event.currentTarget.value),
+            disabled: busy || status.status === 'loading',
+          }),
+          React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save() }, disabled: busy || status.status === 'loading' }, busy ? t('workspace.saving') : t('workspace.save')),
+          React.createElement('span', { style: labelStyle }, summary()),
+          notice === '' ? null : React.createElement('span', { style: labelStyle }, notice),
+        ),
+        status.error === ''
+          ? null
+          : React.createElement('p', { style: help }, `${t('workspace.error')}: ${status.error}`),
+      )
+    }
+
     function apply(ctx) {
       try {
         ctx.effect(() => ctx.locale.register(NS, dictionaries), 'fusion-lean: settings dictionaries')
@@ -227,6 +326,12 @@ window.__ModuleLoader__.load({
           order: 110,
           locale: NS,
         }, EndpointRow))
+        ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+          name: 'settings.general.item',
+          id: 'fusion-harness-workspace',
+          order: 111,
+          locale: NS,
+        }, WorkspaceRow))
         beacon('applied')
       } catch (error) {
         beacon('error', error instanceof Error ? `${error.name}: ${error.message}` : String(error))

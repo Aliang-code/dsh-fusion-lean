@@ -79,11 +79,20 @@ if (exported !== undefined) {
     check('apply runs without throwing', false, error instanceof Error ? error.message : String(error))
   }
 
-  const slot = registrations.find((entry) => entry.kind === 'slot')
-  check('apply registers a slot occupant', slot !== undefined)
-  check('the occupant sits in settings.general.item', slot?.options?.name === 'settings.general.item', String(slot?.options?.name))
-  check('the occupant id is fusion-lean-endpoint', slot?.options?.id === 'fusion-lean-endpoint', String(slot?.options?.id))
-  check('the occupant is a component', typeof slot?.component === 'function')
+  const slots = registrations.filter((entry) => entry.kind === 'slot')
+  check('apply registers two slot occupants', slots.length === 2, String(slots.length))
+  check('both sit in settings.general.item', slots.every((slot) => slot.options?.name === 'settings.general.item'), JSON.stringify(slots.map((slot) => slot.options?.name)))
+  check(
+    'the endpoint row is registered',
+    slots.some((slot) => slot.options?.id === 'fusion-lean-endpoint'),
+    JSON.stringify(slots.map((slot) => slot.options?.id)),
+  )
+  check(
+    'the workspace row is registered',
+    slots.some((slot) => slot.options?.id === 'fusion-harness-workspace'),
+    JSON.stringify(slots.map((slot) => slot.options?.id)),
+  )
+  check('both occupants are components', slots.every((slot) => typeof slot.component === 'function'))
 
   const locale = registrations.find((entry) => entry.kind === 'locale')
   check('the dictionaries cover zh and en', locale !== undefined && locale.keys.length === 2, JSON.stringify(locale?.keys))

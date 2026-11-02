@@ -59,6 +59,21 @@ GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
 设置页的表单由本包的 client 半区渲染——DSH 不会按 schema 自动生成表单（`dsh-settings`：`autoGenerate`「目前没有已发布的客户端这样做」）。
 
+## 配置工作区（`fusion-harness` 行）
+
+`hf_*` 工具需要一个 fusion-harness 工作区。**别人装完之后在设置页填一行就能用**，不用手改 YAML：
+
+设置 → 通用设置 → 「Fusion 工作区」→ 填根目录 → 保存。保存时会校验该目录下确实有 `tools/hf.py`，否则拒绝并说明原因；留空表示只启用 MCP 工具面（`hf_*` 不注册，其余照常）。
+
+它写入的是 profile patch 里按行 id 的覆盖：
+
+```yaml
+- id: fusion-harness
+  name: '@local/dsh-fusion-lean/harness'
+  config:
+    harnessRoot: D:\work\fusion-harness
+```
+
 > 注意：`packages/fusion-lean/package.json` 的 `exports` 必须保留 `"./package.json": "./package.json"`。缺这一行时 client 扫描器读不到清单，会**静默**把插件当成"不是 client 包"（表现为设置行永远不出现、日志无任何报错）。
 
 ## 安全边界（安装前请读完）
