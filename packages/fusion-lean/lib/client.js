@@ -36,18 +36,23 @@ window.__ModuleLoader__.load({
     }
     beacon('loaded')
 
-    const fields = [
-      { key: 'host', label: 'host', kind: 'text', hint: '127.0.0.1' },
-      { key: 'port', label: 'port', kind: 'number', hint: '27182' },
-      { key: 'path', label: 'path', kind: 'text', hint: '/mcp' },
-      { key: 'url', label: 'url', kind: 'text', hint: '（可选，填了覆盖上面三项）' },
-      { key: 'toolCallTimeoutMs', label: 'timeout (ms)', kind: 'number', hint: '120000' },
+    // For essentially everyone the endpoint is 127.0.0.1:<port>/mcp, so the form
+    // asks for the port and keeps the two rare overrides behind 高级. `host` and
+    // `path` stay configurable in `cordis.patch.yml`, they just don't earn a field.
+    const primaryFields = [{ key: 'port', labelKey: 'config.port', kind: 'number', hint: '27182' }]
+    const advancedFields = [
+      { key: 'url', labelKey: 'config.url', kind: 'text', hint: 'http://127.0.0.1:27182/mcp' },
+      { key: 'toolCallTimeoutMs', labelKey: 'config.timeout', kind: 'number', hint: '120000' },
     ]
 
     const dictionaries = {
       zh: {
         'config.title': 'Fusion MCP 端点',
-        'config.help': '端口/主机/路径改动会立即写回 profile 并重载本行；URL 非空时覆盖前三项。',
+        'config.help': '只改端口就行。host 与 path 默认 127.0.0.1 与 /mcp，需要时在 cordis.patch.yml 里改。保存后需重启 DSH 生效。',
+        'config.port': '端口',
+        'config.url': '完整 URL',
+        'config.timeout': '超时（毫秒）',
+        'config.advanced': '高级设置',
         'config.endpoint': '当前端点',
         'config.save': '保存',
         'config.saving': '保存中…',
@@ -57,7 +62,11 @@ window.__ModuleLoader__.load({
       },
       en: {
         'config.title': 'Fusion MCP endpoint',
-        'config.help': 'Host, port and path are written back to the profile and the row reloads. A non-empty URL wins over them.',
+        'config.help': 'The port is all you normally need; host and path default to 127.0.0.1 and /mcp and can be set in cordis.patch.yml. Restart DSH to apply.',
+        'config.port': 'Port',
+        'config.url': 'Full URL',
+        'config.timeout': 'Timeout (ms)',
+        'config.advanced': 'Advanced',
         'config.endpoint': 'Current endpoint',
         'config.save': 'Save',
         'config.saving': 'Saving…',
@@ -95,6 +104,16 @@ window.__ModuleLoader__.load({
       fontSize: '12px',
       cursor: 'pointer',
     }
+    const linkButtonStyle = {
+      height: '24px',
+      padding: '0 4px',
+      border: 'none',
+      background: 'transparent',
+      color: 'var(--dsw-alias-label-tertiary)',
+      font: 'inherit',
+      fontSize: '12px',
+      cursor: 'pointer',
+    }
 
     function EndpointRow(props) {
       const t = typeof props.t === 'function' ? props.t : (key) => key
@@ -102,6 +121,7 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = React.useState({})
       const [busy, setBusy] = React.useState(false)
       const [notice, setNotice] = React.useState('')
+      const [advanced, setAdvanced] = React.useState(false)
 
       const load = React.useCallback(async () => {
         try {
@@ -132,7 +152,12 @@ window.__ModuleLoader__.load({
           const response = await fetch(ROUTE, {
             method: 'POST',
             headers: { 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify(draft),
+            // Only the fields this form owns; host/path keep whatever the patch has.
+            body: JSON.stringify({
+              port: draft.port,
+              url: draft.url ?? '',
+              toolCallTimeoutMs: draft.toolCallTimeoutMs,
+            }),
           })
           const body = await response.json()
           if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
@@ -160,8 +185,8 @@ window.__ModuleLoader__.load({
           : React.createElement(
               'div',
               { style: grid },
-              ...fields.flatMap((field) => [
-                React.createElement('label', { key: `${field.key}-label`, style: labelStyle, htmlFor: `fusion-lean-${field.key}` }, field.label),
+              ...(advanced ? [...primaryFields, ...advancedFields] : primaryFields).flatMap((field) => [
+                React.createElement('label', { key: `${field.key}-label`, style: labelStyle, htmlFor: `fusion-lean-${field.key}` }, t(field.labelKey)),
                 React.createElement('input', {
                   key: `${field.key}-input`,
                   id: `fusion-lean-${field.key}`,
@@ -178,6 +203,12 @@ window.__ModuleLoader__.load({
           'div',
           { style: rowStyle },
           React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save() }, disabled: busy || state.status === 'loading' }, busy ? t('config.saving') : t('config.save')),
+          React.createElement('button', {
+            type: 'button',
+            style: linkButtonStyle,
+            onClick: () => setAdvanced((current) => !current),
+            'aria-expanded': advanced,
+          }, `${advanced ? '▾' : '▸'} ${t('config.advanced')}`),
           notice === '' ? null : React.createElement('span', { style: labelStyle }, notice),
           state.endpoint === '' ? null : React.createElement('code', { style: codeStyle }, `${t('config.endpoint')}: ${state.endpoint}`),
         ),
