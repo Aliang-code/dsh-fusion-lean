@@ -8,7 +8,7 @@
  * edits through `configEditor`, which applies them via the normal Loader path.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveEndpoint } from './endpoint.js'
@@ -20,15 +20,29 @@ const MAX_BODY = 8 * 1024
 
 const FIELDS = ['host', 'port', 'path', 'url', 'toolCallTimeoutMs']
 
-/** What a workspace needs to be usable by the `fusion-harness` row. */
+/**
+ * Report what a workspace path currently offers.
+ *
+ * Only `exists` / `isDirectory` are treated as a hard requirement, because that
+ * is the only thing a save can be wrong about. `hasScript` is a **signal**, not a
+ * gate: the workspace can be cloned or created after the path is saved, and the
+ * truth is re-read on every `hf_*` call anyway.
+ */
 function inspectWorkspace(root) {
   if (typeof root !== 'string' || root.trim().length === 0) {
-    return { configured: false, exists: false, hasScript: false }
+    return { configured: false, exists: false, isDirectory: false, hasScript: false }
   }
   const clean = root.trim()
+  let isDirectory = false
+  try {
+    isDirectory = statSync(clean).isDirectory()
+  } catch {
+    isDirectory = false
+  }
   return {
     configured: true,
     exists: existsSync(clean),
+    isDirectory,
     hasScript: existsSync(join(clean, 'tools', 'hf.py')),
   }
 }
@@ -169,12 +183,9 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
         const harnessRoot = typeof body.harnessRoot === 'string' ? body.harnessRoot.trim() : ''
         const python = typeof body.python === 'string' && body.python.trim().length > 0 ? body.python.trim() : undefined
         const checks = inspectWorkspace(harnessRoot)
-        if (harnessRoot.length > 0 && !checks.hasScript) {
-          throw new Error(
-            checks.exists
-              ? `no tools/hf.py under ${harnessRoot} — this must be the fusion-harness workspace root`
-              : `${harnessRoot} does not exist`,
-          )
+        if (checks.configured) {
+          if (!checks.exists) throw new Error(`${harnessRoot} does not exist`)
+          if (!checks.isDirectory) throw new Error(`${harnessRoot} is a file, not a directory`)
         }
         const entry = harnessEntry()
         if (entry === undefined) throw new Error('the fusion-harness row is not an entry that can be persisted')
@@ -183,7 +194,17 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
           harnessRoot,
           ...(python === undefined ? {} : { python }),
         }))
-        send(res, 200, { ok: true, config: { harnessRoot, python: python ?? readWorkspace().python }, checks })
+        send(res, 200, {
+          ok: true,
+          config: { harnessRoot, python: python ?? readWorkspace().python },
+          checks,
+          // Saved on purpose even when tools/hf.py is missing: the workspace can be
+          // cloned afterwards, and the tool call is where that truth is re-read.
+          warning:
+            checks.configured && !checks.hasScript
+              ? 'saved, but no tools/hf.py was found there — hf_* calls will fail until the workspace is in place'
+              : null,
+        })
       } catch (error) {
         send(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
       }

@@ -70,6 +70,7 @@ window.__ModuleLoader__.load({
         'workspace.ok': '已找到 tools/hf.py',
         'workspace.missing': '该目录下没有 tools/hf.py',
         'workspace.error': '无法读取或保存工作区',
+        'workspace.warnNoScript': '已保存，但没找到 tools/hf.py（hf_* 会失败）',
       },
       en: {
         'config.title': 'Fusion MCP endpoint',
@@ -94,6 +95,7 @@ window.__ModuleLoader__.load({
         'workspace.ok': 'tools/hf.py found',
         'workspace.missing': 'no tools/hf.py under that path',
         'workspace.error': 'Could not read or save the workspace',
+        'workspace.warnNoScript': 'Saved, but no tools/hf.py was found (hf_* will fail)',
       },
     }
 
@@ -276,7 +278,7 @@ window.__ModuleLoader__.load({
           const body = await response.json()
           if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
           setStatus({ status: 'ready', checks: body.checks, error: '' })
-          setNotice(t('workspace.saved'))
+          setNotice(typeof body.warning === 'string' ? t('workspace.warnNoScript') : t('workspace.saved'))
         } catch (error) {
           setStatus((current) => ({ ...current, status: 'error', error: error instanceof Error ? error.message : String(error) }))
         } finally {

@@ -125,10 +125,18 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
 {
   const { routes, edits } = harness(config)
   const missing = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: 'D:\\definitely\\not\\here' }) }))
-  check('a path without tools/hf.py is refused', missing.status === 400 && /does not exist/.test(missing.body.error), JSON.stringify(missing.body))
+  check('a path that does not exist is refused', missing.status === 400 && /does not exist/.test(missing.body.error), JSON.stringify(missing.body))
+  check('a refused path is not persisted', edits.length === 0)
+
+  // The workspace may be cloned after the path is saved, so a missing script is a
+  // warning, not a gate — the tool call is where that truth is re-read.
+  const noScript = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: process.env.TEMP }) }))
+  check('an existing directory without tools/hf.py is accepted', noScript.status === 200 && noScript.body.checks.hasScript === false, JSON.stringify(noScript.body))
+  check('… and it comes with an explicit warning', typeof noScript.body.warning === 'string' && /tools\/hf\.py/.test(noScript.body.warning), JSON.stringify(noScript.body.warning))
+
   const empty = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: '' }) }))
   check('an empty path is allowed (MCP-only mode)', empty.status === 200 && empty.body.checks.configured === false, JSON.stringify(empty.body))
-  check('only the allowed edit reached persistence', edits.length === 1 && edits[0].next.harnessRoot === '')
+  check('every accepted save reached persistence', edits.length === 2 && edits[1].next.harnessRoot === '')
 }
 
 // --- shared guards --------------------------------------------------------
