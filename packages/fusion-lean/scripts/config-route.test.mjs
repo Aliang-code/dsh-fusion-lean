@@ -7,7 +7,9 @@
  * and the workspace row, so a failure after a restart can only be registration.
  */
 
+import { existsSync, rmSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
+import { join } from 'node:path'
 
 import { registerConfigRoute } from '../src/config-route.js'
 
@@ -126,7 +128,18 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
   const { routes, edits } = harness(config)
   const missing = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: 'D:\\definitely\\not\\here' }) }))
   check('a path that does not exist is refused', missing.status === 400 && /does not exist/.test(missing.body.error), JSON.stringify(missing.body))
+  check('the refusal offers to create it', missing.body.canCreate === true && missing.body.code === 'not-found', JSON.stringify(missing.body))
   check('a refused path is not persisted', edits.length === 0)
+
+  // Explicit second step: a typo must never create a folder, so creation needs
+  // `create: true` from the user's confirmation.
+  const target = join(process.env.TEMP, `fusion-lean-create-test-${Date.now()}`)
+  const created = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: target, create: true }) }))
+  check('an explicit create succeeds', created.status === 200 && created.body.created === true, JSON.stringify(created.body))
+  check('the directory really exists', existsSync(target))
+  check('the empty directory carries a warning', typeof created.body.warning === 'string' && /empty/.test(created.body.warning), JSON.stringify(created.body.warning))
+  check('the created path was persisted', edits.length === 1 && edits[0].next.harnessRoot === target)
+  rmSync(target, { recursive: true, force: true })
 
   // The workspace may be cloned after the path is saved, so a missing script is a
   // warning, not a gate — the tool call is where that truth is re-read.
@@ -136,7 +149,7 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
 
   const empty = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: '' }) }))
   check('an empty path is allowed (MCP-only mode)', empty.status === 200 && empty.body.checks.configured === false, JSON.stringify(empty.body))
-  check('every accepted save reached persistence', edits.length === 2 && edits[1].next.harnessRoot === '')
+  check('every accepted save reached persistence', edits.length === 3 && edits.at(-1).next.harnessRoot === '')
 }
 
 // --- shared guards --------------------------------------------------------

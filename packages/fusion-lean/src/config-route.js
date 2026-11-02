@@ -8,7 +8,7 @@
  * edits through `configEditor`, which applies them via the normal Loader path.
  */
 
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { resolveEndpoint } from './endpoint.js'
@@ -182,11 +182,30 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
         if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new Error('body must be an object')
         const harnessRoot = typeof body.harnessRoot === 'string' ? body.harnessRoot.trim() : ''
         const python = typeof body.python === 'string' && body.python.trim().length > 0 ? body.python.trim() : undefined
-        const checks = inspectWorkspace(harnessRoot)
-        if (checks.configured) {
-          if (!checks.exists) throw new Error(`${harnessRoot} does not exist`)
-          if (!checks.isDirectory) throw new Error(`${harnessRoot} is a file, not a directory`)
+        const wantCreate = body.create === true
+
+        const before = inspectWorkspace(harnessRoot)
+        let created = false
+        if (before.configured && !before.exists) {
+          // Creating a directory is a deliberate second step, never a side effect of
+          // typing a path: a typo would otherwise leave a junk folder that looks
+          // configured forever.
+          if (!wantCreate) {
+            send(res, 400, {
+              ok: false,
+              code: 'not-found',
+              canCreate: true,
+              error: `${harnessRoot} does not exist`,
+            })
+            return
+          }
+          mkdirSync(harnessRoot, { recursive: true })
+          created = true
         }
+
+        const checks = inspectWorkspace(harnessRoot)
+        if (checks.configured && !checks.isDirectory) throw new Error(`${harnessRoot} is a file, not a directory`)
+
         const entry = harnessEntry()
         if (entry === undefined) throw new Error('the fusion-harness row is not an entry that can be persisted')
         await configEditor.edit(entry, (raw) => ({
@@ -196,13 +215,16 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
         }))
         send(res, 200, {
           ok: true,
+          created,
           config: { harnessRoot, python: python ?? readWorkspace().python },
           checks,
           // Saved on purpose even when tools/hf.py is missing: the workspace can be
           // cloned afterwards, and the tool call is where that truth is re-read.
           warning:
             checks.configured && !checks.hasScript
-              ? 'saved, but no tools/hf.py was found there — hf_* calls will fail until the workspace is in place'
+              ? created
+                ? 'directory created, but it is empty — clone or copy the fusion-harness workspace into it before using hf_*'
+                : 'saved, but no tools/hf.py was found there — hf_* calls will fail until the workspace is in place'
               : null,
         })
       } catch (error) {

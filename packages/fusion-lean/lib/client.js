@@ -71,6 +71,8 @@ window.__ModuleLoader__.load({
         'workspace.missing': '该目录下没有 tools/hf.py',
         'workspace.error': '无法读取或保存工作区',
         'workspace.warnNoScript': '已保存，但没找到 tools/hf.py（hf_* 会失败）',
+        'workspace.willCreate': '该目录不存在，可以新建',
+        'workspace.create': '新建目录并保存',
       },
       en: {
         'config.title': 'Fusion MCP endpoint',
@@ -96,6 +98,8 @@ window.__ModuleLoader__.load({
         'workspace.missing': 'no tools/hf.py under that path',
         'workspace.error': 'Could not read or save the workspace',
         'workspace.warnNoScript': 'Saved, but no tools/hf.py was found (hf_* will fail)',
+        'workspace.willCreate': 'That directory does not exist yet',
+        'workspace.create': 'Create it and save',
       },
     }
 
@@ -248,6 +252,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = React.useState({ status: 'loading', checks: null, error: '' })
       const [busy, setBusy] = React.useState(false)
       const [notice, setNotice] = React.useState('')
+      const [canCreate, setCanCreate] = React.useState(false)
 
       const load = React.useCallback(async () => {
         try {
@@ -266,17 +271,25 @@ window.__ModuleLoader__.load({
         void load()
       }, [load])
 
-      const save = React.useCallback(async () => {
+      const save = React.useCallback(async (create = false) => {
         setBusy(true)
         setNotice('')
+        setCanCreate(false)
         try {
           const response = await fetch(WORKSPACE_ROUTE, {
             method: 'POST',
             headers: { 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify({ harnessRoot: draft, python }),
+            body: JSON.stringify({ harnessRoot: draft, python, create }),
           })
           const body = await response.json()
-          if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
+          if (!response.ok || body.ok !== true) {
+            if (body?.code === 'not-found') {
+              setCanCreate(true)
+              setNotice(t('workspace.willCreate'))
+              return
+            }
+            throw new Error(body.error ?? `HTTP ${response.status}`)
+          }
           setStatus({ status: 'ready', checks: body.checks, error: '' })
           setNotice(typeof body.warning === 'string' ? t('workspace.warnNoScript') : t('workspace.saved'))
         } catch (error) {
@@ -309,7 +322,15 @@ window.__ModuleLoader__.load({
             onChange: (event) => setDraft(event.currentTarget.value),
             disabled: busy || status.status === 'loading',
           }),
-          React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save() }, disabled: busy || status.status === 'loading' }, busy ? t('workspace.saving') : t('workspace.save')),
+          React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save(false) }, disabled: busy || status.status === 'loading' }, busy ? t('workspace.saving') : t('workspace.save')),
+          canCreate
+            ? React.createElement('button', {
+                type: 'button',
+                style: buttonStyle,
+                onClick: () => { void save(true) },
+                disabled: busy,
+              }, t('workspace.create'))
+            : null,
           React.createElement('span', { style: labelStyle }, summary()),
           notice === '' ? null : React.createElement('span', { style: labelStyle }, notice),
         ),
