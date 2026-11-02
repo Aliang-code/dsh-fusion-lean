@@ -1,7 +1,0 @@
-- insert:
-    - id: fusion-harness
-      name: '@local/dsh-fusion-harness-tools'
-      config:
-        harnessRoot: D:\Users\Aliang\Desktop\装修\接单\fusion-harness
-        python: python
-        timeoutMs: 300000

@@ -1,3 +1,9 @@
+# One bundle, two rows: the MCP facade (no prerequisites) and the fusion-harness
+# tool bridge (needs a Python interpreter and a workspace). Disabling one row
+# leaves the other running.
+#
+# harnessRoot ships empty on purpose: the workspace lives on the operator's disk,
+# so it is configured as an id-targeted override in the profile patch.
 - insert:
     - id: fusion-lean
       name: '@local/dsh-fusion-lean'
@@ -6,3 +12,9 @@
         port: 27182
         path: /mcp
         toolCallTimeoutMs: 120000
+    - id: fusion-harness
+      name: '@local/dsh-fusion-lean/harness'
+      config:
+        harnessRoot: ''
+        python: python
+        timeoutMs: 300000

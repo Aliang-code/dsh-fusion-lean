@@ -1,50 +1,50 @@
 # fusion-mcp-plugin
 
-把 DSH 接进 Fusion 建模的两个包：**A 层瘦身连接器** 与 **B 层 hf 工具**。
+把 DSH 接进 Fusion 建模：**一个 bundle，两行**。
+
+| 行 | 作用 | 前置条件 |
+|---|---|---|
+| `fusion-lean` | 接 Fusion 自带的 MCP 服务：`fusion_read` / `fusion_execute` / `fusion_update` / `fusion_electronics_read`，加 `fusion_help`、`fusion_status`、不可逆动作门禁、可编辑端点 | Fusion 在跑，**无 Python 依赖** |
+| `fusion-harness` | 把 `fusion-harness` 的 `hf.py` 包成 `hf_probe` / `hf_build` / `hf_run` / `hf_flat` / `hf_verify` / `hf_new` | 本机 `python`（3.10+）+ `harnessRoot` 配置 |
+
+两行在同一个包里，安装一次、插件列表只出现一个条目；**停用其中一行，另一行照常工作**。`fusion-harness` 没有配置 `harnessRoot` 时只记一条警告并跳过注册，不会拖垮 `fusion-lean`。
 
 动机、设计与验收口径在 `openspec/changes/add-fusion-mcp-plugin/`（proposal / specs / design / tasks）。
-
-## 两个包
-
-| 包 | 作用 | 依赖 |
-|---|---|---|
-| `packages/fusion-lean` | 通过 Fusion 自带的 MCP 服务（`127.0.0.1:27182`）暴露 `fusion_read` / `fusion_execute` / `fusion_update` / `fusion_electronics_read`，加 `fusion_help` 与 `fusion_status` | **无** Python 依赖 |
-| `packages/harness-tools` | 把 `fusion-harness` 的 `hf.py` 包成 `hf_probe` / `hf_build` / `hf_run` / `hf_flat` / `hf_verify` / `hf_new` | 需要本机 `python`（3.10+）与 `harnessRoot` 配置 |
 
 ## 前置条件
 
 1. 已安装 Fusion，并在 Fusion 内启用其 MCP 服务；服务监听 `127.0.0.1:27182`。
 2. DSH 0.2.0-rc.2 或更新。
-3. （仅 B 层）本机有可用的 Python；`hf.py` 与工作区在 `harnessRoot` 指向的目录。
+3. （仅 `fusion-harness` 行）本机有可用的 Python；`hf.py` 与工作区在 `harnessRoot` 指向的目录。
 
-Fusion 未运行时 **A 层的工具仍然存在**，调用会给出明确错误；启动 Fusion 后直接重试即可，不需要重载插件。
+Fusion 未运行时 **`fusion-*` 工具仍然存在**，调用会给出明确错误；启动 Fusion 后直接重试即可，不需要重载插件。
 
 ## 安装
 
 ```powershell
-# 从 tarball（本仓库产物）
-dsh plugin add D:\path\to\local-dsh-fusion-lean-0.1.0.tgz
-
-# 或从包名（发布后）
-dsh plugin add @<scope>/dsh-fusion-lean
+dsh plugin add D:\path\to\local-dsh-fusion-lean-0.3.0.tgz   # tarball
+dsh plugin add @<scope>/dsh-fusion-lean                      # 发布后
 ```
 
 GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
-B 层需要在 `cordis.patch.yml` 里给出 `harnessRoot`（安装时由 bundle 自带默认值，按需改）：
+`harnessRoot` 是**本机路径**，所以随包发布的 patch 里它是空的，由 profile 的 patch 做 id 覆盖：
 
 ```yaml
 - id: fusion-harness
-  name: '@local/dsh-fusion-harness-tools'
+  name: '@local/dsh-fusion-lean/harness'
   config:
     harnessRoot: D:\Users\Aliang\Desktop\装修\接单\fusion-harness
     python: python          # 或 ["py", "-3"]
     timeoutMs: 300000
 ```
 
-## 配置端点（A 层）
+## 配置端点
 
-端口、主机、路径都做成了插件配置，可通过插件设置页或 `cordis.patch.yml` 修改：
+端点默认 `http://127.0.0.1:27182/mcp`，改端口有两条路：
+
+1. **设置页**：左下角齿轮 → 通用设置 → 最下面一行「Fusion MCP 端点」。只需要填**端口**，`完整 URL` 与 `超时` 在「▸ 高级设置」里。保存即写回 profile（需要重启 DSH 生效）。
+2. **直接编辑** `cordis.patch.yml` 里 `fusion-lean` 行的 `config`：
 
 ```yaml
 - id: fusion-lean
@@ -57,13 +57,9 @@ B 层需要在 `cordis.patch.yml` 里给出 `harnessRoot`（安装时由 bundle 
     toolCallTimeoutMs: 120000
 ```
 
-`url` 优先级最高；`host`/`port`/`path` 用来拼 `http://host:port/path`。改完不需要重写代码，也不需要重启 —— 配置变更按 Loader 的正常路径重新激活该行。
+设置页的表单由本包的 client 半区渲染——DSH 不会按 schema 自动生成表单（`dsh-settings`：`autoGenerate`「目前没有已发布的客户端这样做」）。
 
-改端口有两条路：
-
-1. **插件设置页**：侧栏「插件」→ 本包 → 该行页面里的五个字段（host / port / path / url / timeout），保存即写回 profile 并重载本行。表单由本包的 client 半区渲染——DSH 目前不会按 schema 自动生成表单（`dsh-settings`：`autoGenerate`「目前没有已发布的客户端这样做」）。
-2. **直接编辑** `cordis.patch.yml` 里该行的 `config`，效果相同。
-
+> 注意：`packages/fusion-lean/package.json` 的 `exports` 必须保留 `"./package.json": "./package.json"`。缺这一行时 client 扫描器读不到清单，会**静默**把插件当成"不是 client 包"（表现为设置行永远不出现、日志无任何报错）。
 
 ## 安全边界（安装前请读完）
 
@@ -83,9 +79,9 @@ node packages/fusion-lean/scripts/snapshot.mjs  # 重抓能力契约快照
 
 ```
 upstream surface (as a plain MCP client would register it)   40,446 B
-lean surface (this bundle)                                   11,875 B
-saved 28,571 B per request (70.6% smaller; 3.41x)
-budget 16384 B; using 11875 B (72.5%)
+lean surface (this bundle)                                   11,866 B
+saved 28,580 B per request (70.7% smaller; 3.41x)
+budget 16384 B; using 11866 B (72.4%)
 ```
 
 上游四个工具的 `inputSchema` / `outputSchema` 逐字节保留，只有描述被压缩；完整上游说明由 `fusion_help` 按需返回（`fusion_help({tool:"fusion_execute"})` 约 18.5 KB 原文）。
@@ -100,9 +96,14 @@ Fusion 的 MCP 传输会把 UTF-8 当 latin-1 重新解码。两个方向都处�
 ## 测试
 
 ```powershell
-node packages/fusion-lean/scripts/codec.test.mjs
-node packages/fusion-lean/scripts/guard.test.mjs
-node packages/harness-tools/scripts/tools.test.mjs .\..\..\fusion-harness
+cd packages/fusion-lean
+node scripts/codec.test.mjs
+node scripts/guard.test.mjs
+node scripts/endpoint.test.mjs
+node scripts/drift.test.mjs
+node scripts/config-route.test.mjs
+node scripts/client-module.test.mjs
+node scripts/harness.test.mjs ..\..\..\..\fusion-harness
 ```
 
 ## 回滚

@@ -2,10 +2,10 @@
  * Tool-layer checks that need no DSH host: spawn, structured result, failure
  * pass-through, shipped-set protection, missing interpreter.
  *
- *   node scripts/tools.test.mjs [harnessRoot]
+ *   node scripts/harness.test.mjs [harnessRoot]
  */
 
-import { buildHarnessTools } from '../src/tools.js'
+import { buildHarnessTools } from '../src/harness/tools.js'
 
 const harnessRoot = process.argv[2] ?? 'D:\\Users\\Aliang\\Desktop\\装修\\接单\\fusion-harness'
 const config = { harnessRoot, python: 'python', timeoutMs: 300000 }
