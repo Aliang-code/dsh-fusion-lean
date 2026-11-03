@@ -42,7 +42,7 @@ function fakeResponse() {
   }
 }
 
-function harness(config) {
+function harness(config, picker) {
   const routes = new Map()
   const edits = []
   const harnessRow = { options: { id: 'fusion-harness' }, fiber: { config: { harnessRoot: '' } } }
@@ -62,6 +62,7 @@ function harness(config) {
         if (entry === harnessRow) harnessRow.fiber.config = { ...harnessRow.fiber.config, ...next }
       },
     },
+    get: (name) => (name === 'directoryPicker' ? picker : undefined),
   }
   registerConfigRoute(ctx, () => config)
   return { routes, edits }
@@ -150,6 +151,31 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
   const empty = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: '' }) }))
   check('an empty path is allowed (MCP-only mode)', empty.status === 200 && empty.body.checks.configured === false, JSON.stringify(empty.body))
   check('every accepted save reached persistence', edits.length === 3 && edits.at(-1).next.harnessRoot === '')
+}
+
+// --- directory picking ----------------------------------------------------
+{
+  const native = { capability: () => ({ kind: 'native', pick: async () => HARNESS_ROOT }) }
+  const { routes } = harness(config, native)
+  const picked = await call(routes, '/fusion-lean/pick', new FakeRequest({ method: 'POST' }))
+  check('POST /pick returns the native choice', picked.status === 200 && picked.body.path === HARNESS_ROOT, JSON.stringify(picked.body))
+}
+{
+  const cancel = { capability: () => ({ kind: 'native', pick: async () => null }) }
+  const { routes } = harness(config, cancel)
+  const picked = await call(routes, '/fusion-lean/pick', new FakeRequest({ method: 'POST' }))
+  check('cancelling the dialog is not an error', picked.status === 200 && picked.body.cancelled === true, JSON.stringify(picked.body))
+}
+{
+  const browseOnly = { capability: () => ({ kind: 'browse', list: async () => ({}) }) }
+  const { routes } = harness(config, browseOnly)
+  const unsupported = await call(routes, '/fusion-lean/pick', new FakeRequest({ method: 'POST' }))
+  check('a browse-only host reports unsupported', unsupported.status === 501 && unsupported.body.code === 'unsupported', JSON.stringify(unsupported.body))
+}
+{
+  const { routes } = harness(config, undefined)
+  const missing = await call(routes, '/fusion-lean/pick', new FakeRequest({ method: 'POST' }))
+  check('a host without a picker reports unsupported', missing.status === 501 && missing.body.code === 'unsupported', JSON.stringify(missing.body))
 }
 
 // --- shared guards --------------------------------------------------------

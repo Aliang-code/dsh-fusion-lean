@@ -19,6 +19,8 @@ const WORKSPACE_PATH = '/fusion-lean/workspace'
 const MAX_BODY = 8 * 1024
 
 const FIELDS = ['host', 'port', 'path', 'url', 'toolCallTimeoutMs']
+const PICK_PATH = '/fusion-lean/pick'
+const PICK_TIMEOUT_MS = 120000
 
 /**
  * Report what a workspace path currently offers.
@@ -276,9 +278,55 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
       }
     },
   })
+  // Directory picking lives on the host: the desktop backend offers a native
+  // dialog, the browser backend offers a browse listing. This route asks for the
+  // native one and says so plainly when only browsing exists — the page then falls
+  // back to its own client-side picker.
+  const disposePick = webServer.register({
+    kind: 'exact',
+    path: PICK_PATH,
+    handler: async (req, res) => {
+      if (!isLoopback(req)) {
+        send(res, 403, { ok: false, error: 'loopback only' })
+        return
+      }
+      if (req.method !== 'POST') {
+        send(res, 405, { ok: false, error: 'POST' })
+        return
+      }
+      try {
+        const picker = typeof ctx.get === 'function' ? ctx.get('directoryPicker') : ctx.directoryPicker
+        const capability = typeof picker?.capability === 'function' ? picker.capability() : undefined
+        if (capability === undefined || capability.kind !== 'native' || typeof capability.pick !== 'function') {
+          send(res, 501, {
+            ok: false,
+            code: 'unsupported',
+            error: 'this host offers no native directory dialog',
+          })
+          return
+        }
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), PICK_TIMEOUT_MS)
+        try {
+          const picked = await capability.pick(controller.signal)
+          if (picked === null || picked === undefined || picked === '') {
+            send(res, 200, { ok: true, cancelled: true, path: null })
+            return
+          }
+          send(res, 200, { ok: true, cancelled: false, path: String(picked) })
+        } finally {
+          clearTimeout(timer)
+        }
+      } catch (error) {
+        send(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  })
+
   return () => {
     dispose()
     disposeClientStatus()
     disposeWorkspace()
+    disposePick()
   }
 }

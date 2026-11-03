@@ -18,6 +18,7 @@ window.__ModuleLoader__.load({
     const ROUTE = '/fusion-lean/config'
     const WORKSPACE_ROUTE = '/fusion-lean/workspace'
     const STATUS_ROUTE = '/fusion-lean/client-status'
+    const PICK_ROUTE = '/fusion-lean/pick'
     const NS = 'fusion-lean'
     const inject = ['slots', 'locale', 'uiWorkspace']
 
@@ -304,11 +305,27 @@ window.__ModuleLoader__.load({
 
       const browse = React.useCallback(async () => {
         setPickError('')
+        // The host owns the native dialog; the browser backend answers
+        // "unsupported" and the client-side picker takes over.
+        try {
+          const response = await fetch(PICK_ROUTE, { method: 'POST', headers: { accept: 'application/json' } })
+          const body = await response.json().catch(() => ({}))
+          if (response.ok && body?.ok === true) {
+            if (body.cancelled !== true && typeof body.path === 'string' && body.path !== '') setDraft(body.path)
+            return
+          }
+          if (body?.code !== 'unsupported') throw new Error(body?.error ?? `HTTP ${response.status}`)
+        } catch (error) {
+          if (!(error instanceof TypeError)) {
+            setPickError(`${t('workspace.pickFailed')}: ${error instanceof Error ? error.message : String(error)}`)
+            return
+          }
+        }
         try {
           const picked = await services?.uiWorkspace?.pickDirectory?.()
           if (typeof picked === 'string' && picked.length > 0) setDraft(picked)
-        } catch {
-          setPickError(t('workspace.pickFailed'))
+        } catch (error) {
+          setPickError(`${t('workspace.pickFailed')}: ${error instanceof Error ? error.message : String(error)}`)
         }
       }, [t])
 
