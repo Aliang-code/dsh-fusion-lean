@@ -5,9 +5,16 @@
  *   node scripts/harness.test.mjs [harnessRoot]
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { buildHarnessTools } from '../src/harness/tools.js'
 
-const harnessRoot = process.argv[2] ?? 'D:\\Users\\Aliang\\Desktop\\装修\\接单\\fusion-harness'
+const harnessRoot = process.argv[2] ?? process.env.FUSION_HARNESS_ROOT ?? ''
+if (harnessRoot === '' || !existsSync(join(harnessRoot, 'tools', 'hf.py'))) {
+  console.log('skip: no fusion-harness workspace (pass it as the first argument or set FUSION_HARNESS_ROOT)')
+  process.exit(0)
+}
 const config = { harnessRoot, python: 'python', timeoutMs: 300000 }
 
 const tools = new Map(buildHarnessTools(config).map((tool) => [tool.name, tool]))

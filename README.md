@@ -32,9 +32,9 @@ GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
 ```yaml
 - id: fusion-harness
-  name: '@local/dsh-fusion-lean/harness'
+  name: '@aliangbaby/dsh-fusion-lean/harness'
   config:
-    harnessRoot: D:\Users\Aliang\Desktop\装修\接单\fusion-harness
+    harnessRoot: D:\work\fusion-harness
     python: python          # 或 ["py", "-3"]
     timeoutMs: 300000
 ```
@@ -48,7 +48,7 @@ GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
 ```yaml
 - id: fusion-lean
-  name: '@local/dsh-fusion-lean'
+  name: '@aliangbaby/dsh-fusion-lean'
   config:
     host: 127.0.0.1      # 默认
     port: 27182          # 默认，改这里即可换端口
@@ -69,7 +69,7 @@ GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
 ```yaml
 - id: fusion-harness
-  name: '@local/dsh-fusion-lean/harness'
+  name: '@aliangbaby/dsh-fusion-lean/harness'
   config:
     harnessRoot: D:\work\fusion-harness
 ```

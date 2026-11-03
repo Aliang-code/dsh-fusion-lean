@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Fusion MCP">
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#1f6feb" />
+  <path d="M18 44 L32 16 L46 44 Z" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" />
+  <circle cx="32" cy="36" r="3.5" fill="#fff" />
+  <path d="M23 50 H41" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.85" />
+</svg>

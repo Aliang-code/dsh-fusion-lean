@@ -9,7 +9,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: '@local/dsh-fusion-lean',
+  id: '@aliangbaby/dsh-fusion-lean',
   factory: (require) => {
     const React = require('react')
 

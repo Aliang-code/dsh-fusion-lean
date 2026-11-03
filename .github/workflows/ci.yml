@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install workspace dependencies
+        run: npm install --no-audit --no-fund
+      - name: Codec round-trips
+        working-directory: packages/fusion-lean
+        run: node scripts/codec.test.mjs
+      - name: Destructive-action gate
+        working-directory: packages/fusion-lean
+        run: node scripts/guard.test.mjs
+      - name: Endpoint resolution
+        working-directory: packages/fusion-lean
+        run: node scripts/endpoint.test.mjs
+      - name: Schema drift digests
+        working-directory: packages/fusion-lean
+        run: node scripts/drift.test.mjs
+      - name: Settings routes
+        working-directory: packages/fusion-lean
+        run: node scripts/config-route.test.mjs
+      - name: Client module + manifest
+        working-directory: packages/fusion-lean
+        run: node scripts/client-module.test.mjs
+      - name: Prefix budget
+        working-directory: packages/fusion-lean
+        run: node scripts/measure.mjs
+      - name: Harness tools (skips without a workspace)
+        working-directory: packages/fusion-lean
+        run: node scripts/harness.test.mjs

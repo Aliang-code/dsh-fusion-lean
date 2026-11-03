@@ -1,7 +1,7 @@
 {
-  "name": "@local/dsh-fusion-lean",
-  "version": "0.7.0",
-  "private": true,
+  "name": "@aliangbaby/dsh-fusion-lean",
+  "version": "0.8.0",
+  "private": false,
   "type": "module",
   "description": "Fusion for DSH in one bundle: the upstream MCP tools with their exact schemas and an editable endpoint, plus the fusion-harness CLI bridged as tools.",
   "exports": {
@@ -15,7 +15,9 @@
     "lib",
     "assets",
     "locale",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md"
   ],
   "dependencies": {
     "@modelcontextprotocol/client": "2.0.0"
@@ -45,5 +47,25 @@
   "meta": {
     "title": "Fusion MCP",
     "description": "Fusion 建模的一体化接入：MCP 工具面 + 可编辑端点 + hf 建模闭环，一个包两行。"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Aliang-code/dsh-fusion-lean.git",
+    "directory": "packages/fusion-lean"
+  },
+  "homepage": "https://github.com/Aliang-code/dsh-fusion-lean",
+  "bugs": {
+    "url": "https://github.com/Aliang-code/dsh-fusion-lean/issues"
+  },
+  "icon": "./icon.svg",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "fusion",
+    "fusion360",
+    "mcp",
+    "cad",
+    "parametric"
+  ]
 }

@@ -31,9 +31,13 @@ const check = (label, ok, detail) => {
   console.error(`FAIL ${label}${detail === undefined ? '' : `: ${detail}`}`)
 }
 
+import { readFileSync } from 'node:fs'
+
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
 check('the module registered one lazy factory', captured.length === 1, String(captured.length))
 const definition = captured[0]
-check('the factory id is the package name', definition?.id === '@local/dsh-fusion-lean', String(definition?.id))
+check('the factory id is the package name', definition?.id === manifest.name, String(definition?.id))
 
 const React = {
   createElement: (type, props, ...children) => ({ type, props, children }),

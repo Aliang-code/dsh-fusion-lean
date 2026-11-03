@@ -7,13 +7,17 @@
  * and the workspace row, so a failure after a restart can only be registration.
  */
 
-import { existsSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 
 import { registerConfigRoute } from '../src/config-route.js'
 
-const HARNESS_ROOT = 'D:\\Users\\Aliang\\Desktop\\装修\\接单\\fusion-harness'
+const WORKSPACE = mkdtempSync(join(tmpdir(), "fusion-lean-ws-"))
+mkdirSync(join(WORKSPACE, "tools"), { recursive: true })
+writeFileSync(join(WORKSPACE, "tools", "hf.py"), "# test fixture\n")
+const HARNESS_ROOT = WORKSPACE
 
 class FakeRequest extends EventEmitter {
   constructor({ method, body, url, remoteAddress = '127.0.0.1' }) {

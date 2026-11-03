@@ -6,14 +6,14 @@
 # so it is configured as an id-targeted override in the profile patch.
 - insert:
     - id: fusion-lean
-      name: '@local/dsh-fusion-lean'
+      name: '@aliangbaby/dsh-fusion-lean'
       config:
         host: 127.0.0.1
         port: 27182
         path: /mcp
         toolCallTimeoutMs: 120000
     - id: fusion-harness
-      name: '@local/dsh-fusion-lean/harness'
+      name: '@aliangbaby/dsh-fusion-lean/harness'
       config:
         harnessRoot: ''
         python: python
