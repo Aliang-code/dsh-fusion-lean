@@ -1,11 +1,11 @@
 /**
- * Web half: the row's settings page.
+ * Web half: the plugin's settings rows.
  *
  * The harness shows no form for a plugin Config on its own, so this module fills
- * the `plugins.row.config` seat the plugin manager reserves for the row
- * `@local/dsh-fusion-lean#fusion-lean`. It talks to the host route
- * `/fusion-lean/config`, which persists through `configEditor` and reloads the
- * row, so editing the port here is the same as editing `cordis.patch.yml`.
+ * two seats in `settings.general.item`: the endpoint (a port, with two rare
+ * overrides behind 高级) and the workspace directory (with the host's own
+ * directory picker). Both talk to the loopback routes under `/fusion-lean/`,
+ * which persist through `configEditor`.
  */
 
 window.__ModuleLoader__.load({
@@ -13,16 +13,18 @@ window.__ModuleLoader__.load({
   factory: (require) => {
     const React = require('react')
 
-    const ROW_ID = 'fusion-lean-endpoint'
+    const ENDPOINT_ROW_ID = 'fusion-lean-endpoint'
+    const WORKSPACE_ROW_ID = 'fusion-harness-workspace'
     const ROUTE = '/fusion-lean/config'
-    const STATUS_ROUTE = '/fusion-lean/client-status'
     const WORKSPACE_ROUTE = '/fusion-lean/workspace'
+    const STATUS_ROUTE = '/fusion-lean/client-status'
     const NS = 'fusion-lean'
-    const inject = ['slots', 'locale']
+    const inject = ['slots', 'locale', 'uiWorkspace']
 
-    // The browser console is not reachable from the host, so the module reports
-    // its own boot state to a loopback-only route. Without this, "no row" cannot
-    // be told apart from "module never loaded".
+    // The slot renderer hands components no plugin context, so the one service a
+    // component calls directly is captured when `apply` runs.
+    let services = null
+
     const beacon = (stage, message) => {
       if (typeof fetch !== 'function') return
       try {
@@ -37,77 +39,61 @@ window.__ModuleLoader__.load({
     }
     beacon('loaded')
 
-    // For essentially everyone the endpoint is 127.0.0.1:<port>/mcp, so the form
-    // asks for the port and keeps the two rare overrides behind 高级. `host` and
-    // `path` stay configurable in `cordis.patch.yml`, they just don't earn a field.
-    const primaryFields = [{ key: 'port', labelKey: 'config.port', kind: 'number', hint: '27182' }]
-    const advancedFields = [
-      { key: 'url', labelKey: 'config.url', kind: 'text', hint: 'http://127.0.0.1:27182/mcp' },
-      { key: 'toolCallTimeoutMs', labelKey: 'config.timeout', kind: 'number', hint: '120000' },
-    ]
-
     const dictionaries = {
       zh: {
-        'config.title': 'Fusion MCP 端点',
-        'config.help': '只改端口就行。host 与 path 默认 127.0.0.1 与 /mcp，需要时在 cordis.patch.yml 里改。保存后需重启 DSH 生效。',
-        'config.port': '端口',
-        'config.url': '完整 URL',
-        'config.timeout': '超时（毫秒）',
-        'config.advanced': '高级设置',
-        'config.endpoint': '当前端点',
-        'config.save': '保存',
-        'config.saving': '保存中…',
-        'config.saved': '已保存（重启 DSH 后生效）',
-        'config.loading': '读取中…',
-        'config.error': '无法读取或保存配置',
+        'endpoint.title': 'Fusion MCP 端点',
+        'endpoint.port': '端口',
+        'endpoint.url': '完整 URL',
+        'endpoint.timeout': '超时（毫秒）',
+        'endpoint.advanced': '高级',
+        'endpoint.current': '当前',
         'workspace.title': 'Fusion 工作区',
-        'workspace.help': 'hf_* 工具（probe / build / flat / verify）需要 fusion-harness 工作区的根目录。留空则只启用 MCP 工具面。',
-        'workspace.placeholder': 'D:\\work\\fusion-harness',
-        'workspace.save': '保存',
-        'workspace.saving': '保存中…',
-        'workspace.saved': '已保存（重启 DSH 后生效）',
+        'workspace.path': '目录',
+        'workspace.browse': '浏览…',
         'workspace.unset': '未配置：仅 MCP 工具可用',
         'workspace.ok': '已找到 tools/hf.py',
-        'workspace.missing': '该目录下没有 tools/hf.py',
-        'workspace.error': '无法读取或保存工作区',
-        'workspace.warnNoScript': '已保存，但没找到 tools/hf.py（hf_* 会失败）',
-        'workspace.willCreate': '该目录不存在，可以新建',
-        'workspace.create': '新建目录并保存',
+        'workspace.missing': '没有 tools/hf.py',
+        'workspace.pickFailed': '无法打开目录选择器',
+        save: '保存',
+        saving: '保存中…',
+        saved: '已保存（重启 DSH 后生效）',
+        savedEmpty: '已建目录（重启 DSH 后生效）',
+        warningNoScript: '没找到 tools/hf.py，hf_* 会失败',
+        willCreate: '目录不存在',
+        create: '新建',
+        loading: '读取中…',
+        failed: '失败',
       },
       en: {
-        'config.title': 'Fusion MCP endpoint',
-        'config.help': 'The port is all you normally need; host and path default to 127.0.0.1 and /mcp and can be set in cordis.patch.yml. Restart DSH to apply.',
-        'config.port': 'Port',
-        'config.url': 'Full URL',
-        'config.timeout': 'Timeout (ms)',
-        'config.advanced': 'Advanced',
-        'config.endpoint': 'Current endpoint',
-        'config.save': 'Save',
-        'config.saving': 'Saving…',
-        'config.saved': 'Saved — restart DSH to apply',
-        'config.loading': 'Loading…',
-        'config.error': 'Could not read or save the configuration',
+        'endpoint.title': 'Fusion MCP endpoint',
+        'endpoint.port': 'Port',
+        'endpoint.url': 'Full URL',
+        'endpoint.timeout': 'Timeout (ms)',
+        'endpoint.advanced': 'Advanced',
+        'endpoint.current': 'Current',
         'workspace.title': 'Fusion workspace',
-        'workspace.help': 'The hf_* tools (probe / build / flat / verify) need the root of a fusion-harness workspace. Leave it empty to enable the MCP tools only.',
-        'workspace.placeholder': '/home/you/fusion-harness',
-        'workspace.save': 'Save',
-        'workspace.saving': 'Saving…',
-        'workspace.saved': 'Saved — restart DSH to apply',
+        'workspace.path': 'Directory',
+        'workspace.browse': 'Browse…',
         'workspace.unset': 'Not configured: MCP tools only',
         'workspace.ok': 'tools/hf.py found',
-        'workspace.missing': 'no tools/hf.py under that path',
-        'workspace.error': 'Could not read or save the workspace',
-        'workspace.warnNoScript': 'Saved, but no tools/hf.py was found (hf_* will fail)',
-        'workspace.willCreate': 'That directory does not exist yet',
-        'workspace.create': 'Create it and save',
+        'workspace.missing': 'no tools/hf.py',
+        'workspace.pickFailed': 'Could not open the directory picker',
+        save: 'Save',
+        saving: 'Saving…',
+        saved: 'Saved — restart DSH to apply',
+        savedEmpty: 'Directory created — restart DSH to apply',
+        warningNoScript: 'no tools/hf.py there, hf_* will fail',
+        willCreate: 'Directory does not exist',
+        create: 'Create',
+        loading: 'Loading…',
+        failed: 'failed',
       },
     }
 
-    const box = { display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 0' }
-    const title = { color: 'var(--dsw-alias-label-primary)', fontSize: '14px', lineHeight: '22px' }
-    const help = { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', lineHeight: '18px' }
-    const grid = { display: 'grid', gridTemplateColumns: '140px 1fr', gap: '8px', alignItems: 'center' }
-    const labelStyle = { color: 'var(--dsw-alias-label-secondary)', fontSize: '12px' }
+    const section = { display: 'flex', flexDirection: 'column', gap: '6px', padding: '14px 0' }
+    const sectionTitle = { color: 'var(--dsw-alias-label-primary)', fontSize: '13px', lineHeight: '20px', fontWeight: 500 }
+    const control = { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }
+    const fieldLabel = { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', minWidth: '56px' }
     const inputStyle = {
       padding: '6px 10px',
       borderRadius: '10px',
@@ -118,22 +104,22 @@ window.__ModuleLoader__.load({
       fontSize: '12px',
       minWidth: 0,
     }
-    const rowStyle = { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }
-    const codeStyle = { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', userSelect: 'all' }
+    const caption = { color: 'var(--dsw-alias-label-tertiary)', fontSize: '12px', lineHeight: '18px', margin: 0 }
     const buttonStyle = {
-      height: '32px',
+      height: '30px',
       padding: '0 14px',
       border: 'none',
-      borderRadius: '16px',
+      borderRadius: '15px',
       background: 'var(--dsw-alias-bg-module-platform)',
       color: 'var(--dsw-alias-label-primary)',
       font: 'inherit',
       fontSize: '12px',
       cursor: 'pointer',
+      flex: 'none',
     }
-    const linkButtonStyle = {
+    const linkStyle = {
       height: '24px',
-      padding: '0 4px',
+      padding: '0 2px',
       border: 'none',
       background: 'transparent',
       color: 'var(--dsw-alias-label-tertiary)',
@@ -144,10 +130,9 @@ window.__ModuleLoader__.load({
 
     function EndpointRow(props) {
       const t = typeof props.t === 'function' ? props.t : (key) => key
-      const [state, setState] = React.useState({ status: 'loading', endpoint: '', error: '' })
-      const [draft, setDraft] = React.useState({})
+      const [draft, setDraft] = React.useState({ port: '', url: '', toolCallTimeoutMs: '' })
+      const [status, setStatus] = React.useState({ phase: 'loading', endpoint: '', message: '', error: '' })
       const [busy, setBusy] = React.useState(false)
-      const [notice, setNotice] = React.useState('')
       const [advanced, setAdvanced] = React.useState(false)
 
       const load = React.useCallback(async () => {
@@ -156,15 +141,13 @@ window.__ModuleLoader__.load({
           const body = await response.json()
           if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
           setDraft({
-            host: body.config.host ?? '',
             port: body.config.port ?? '',
-            path: body.config.path ?? '',
             url: body.config.url ?? '',
             toolCallTimeoutMs: body.config.toolCallTimeoutMs ?? '',
           })
-          setState({ status: 'ready', endpoint: body.endpoint, error: '' })
+          setStatus({ phase: 'ready', endpoint: body.endpoint, message: '', error: '' })
         } catch (error) {
-          setState({ status: 'error', endpoint: '', error: error instanceof Error ? error.message : String(error) })
+          setStatus({ phase: 'error', endpoint: '', message: '', error: error instanceof Error ? error.message : String(error) })
         }
       }, [])
 
@@ -174,85 +157,106 @@ window.__ModuleLoader__.load({
 
       const save = React.useCallback(async () => {
         setBusy(true)
-        setNotice('')
         try {
           const response = await fetch(ROUTE, {
             method: 'POST',
             headers: { 'content-type': 'application/json', accept: 'application/json' },
-            // Only the fields this form owns; host/path keep whatever the patch has.
-            body: JSON.stringify({
-              port: draft.port,
-              url: draft.url ?? '',
-              toolCallTimeoutMs: draft.toolCallTimeoutMs,
-            }),
+            body: JSON.stringify(draft),
           })
           const body = await response.json()
           if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
-          setState({ status: 'ready', endpoint: body.endpoint, error: '' })
-          setNotice(t('config.saved'))
+          setStatus({ phase: 'ready', endpoint: body.endpoint, message: t('saved'), error: '' })
         } catch (error) {
-          setState((current) => ({ ...current, status: 'error', error: error instanceof Error ? error.message : String(error) }))
+          setStatus((current) => ({ ...current, phase: 'error', error: error instanceof Error ? error.message : String(error) }))
         } finally {
           setBusy(false)
         }
       }, [draft, t])
 
-      const onChange = (key) => (event) => {
+      const change = (key) => (event) => {
         const value = event.currentTarget.value
         setDraft((current) => ({ ...current, [key]: value }))
       }
 
-      return React.createElement(
-        'div',
-        { style: box },
-        React.createElement('div', { style: title }, t('config.title')),
-        React.createElement('p', { style: help }, t('config.help')),
-        state.status === 'loading'
-          ? React.createElement('p', { style: help }, t('config.loading'))
-          : React.createElement(
-              'div',
-              { style: grid },
-              ...(advanced ? [...primaryFields, ...advancedFields] : primaryFields).flatMap((field) => [
-                React.createElement('label', { key: `${field.key}-label`, style: labelStyle, htmlFor: `fusion-lean-${field.key}` }, t(field.labelKey)),
-                React.createElement('input', {
-                  key: `${field.key}-input`,
-                  id: `fusion-lean-${field.key}`,
-                  style: inputStyle,
-                  type: field.kind,
-                  placeholder: field.hint,
-                  value: draft[field.key] ?? '',
-                  onChange: onChange(field.key),
-                  disabled: busy,
-                }),
-              ]),
-            ),
+      const rows = [
         React.createElement(
           'div',
-          { style: rowStyle },
-          React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save() }, disabled: busy || state.status === 'loading' }, busy ? t('config.saving') : t('config.save')),
+          { key: 'port', style: control },
+          React.createElement('span', { style: fieldLabel }, t('endpoint.port')),
+          React.createElement('input', {
+            style: { ...inputStyle, width: '110px' },
+            type: 'number',
+            value: draft.port,
+            onChange: change('port'),
+            disabled: busy || status.phase === 'loading',
+          }),
           React.createElement('button', {
             type: 'button',
-            style: linkButtonStyle,
+            style: buttonStyle,
+            onClick: () => { void save() },
+            disabled: busy || status.phase === 'loading',
+          }, busy ? t('saving') : t('save')),
+          React.createElement('button', {
+            type: 'button',
+            style: linkStyle,
             onClick: () => setAdvanced((current) => !current),
             'aria-expanded': advanced,
-          }, `${advanced ? '▾' : '▸'} ${t('config.advanced')}`),
-          notice === '' ? null : React.createElement('span', { style: labelStyle }, notice),
-          state.endpoint === '' ? null : React.createElement('code', { style: codeStyle }, `${t('config.endpoint')}: ${state.endpoint}`),
+          }, `${advanced ? '▾' : '▸'} ${t('endpoint.advanced')}`),
         ),
-        state.error === ''
-          ? null
-          : React.createElement('p', { style: help }, `${t('config.error')}: ${state.error}`),
+      ]
+
+      if (advanced) {
+        rows.push(
+          React.createElement(
+            'div',
+            { key: 'url', style: control },
+            React.createElement('span', { style: fieldLabel }, t('endpoint.url')),
+            React.createElement('input', {
+              style: { ...inputStyle, flex: '1', minWidth: '260px' },
+              type: 'text',
+              placeholder: 'http://127.0.0.1:27182/mcp',
+              value: draft.url,
+              onChange: change('url'),
+              disabled: busy,
+            }),
+          ),
+          React.createElement(
+            'div',
+            { key: 'timeout', style: control },
+            React.createElement('span', { style: fieldLabel }, t('endpoint.timeout')),
+            React.createElement('input', {
+              style: { ...inputStyle, width: '110px' },
+              type: 'number',
+              value: draft.toolCallTimeoutMs,
+              onChange: change('toolCallTimeoutMs'),
+              disabled: busy,
+            }),
+          ),
+        )
+      }
+
+      const lines = []
+      if (status.phase === 'loading') lines.push(t('loading'))
+      if (status.endpoint !== '') lines.push(`${t('endpoint.current')} ${status.endpoint}`)
+      if (status.message !== '') lines.push(status.message)
+      if (status.error !== '') lines.push(`${t('failed')}: ${status.error}`)
+
+      return React.createElement(
+        'div',
+        { style: section },
+        React.createElement('div', { style: sectionTitle }, t('endpoint.title')),
+        ...rows,
+        lines.length === 0 ? null : React.createElement('p', { style: caption }, lines.join(' · ')),
       )
     }
 
     function WorkspaceRow(props) {
       const t = typeof props.t === 'function' ? props.t : (key) => key
       const [draft, setDraft] = React.useState('')
-      const [python, setPython] = React.useState('python')
-      const [status, setStatus] = React.useState({ status: 'loading', checks: null, error: '' })
+      const [status, setStatus] = React.useState({ phase: 'loading', checks: null, message: '', error: '' })
       const [busy, setBusy] = React.useState(false)
-      const [notice, setNotice] = React.useState('')
       const [canCreate, setCanCreate] = React.useState(false)
+      const [pickError, setPickError] = React.useState('')
 
       const load = React.useCallback(async () => {
         try {
@@ -260,10 +264,9 @@ window.__ModuleLoader__.load({
           const body = await response.json()
           if (!response.ok || body.ok !== true) throw new Error(body.error ?? `HTTP ${response.status}`)
           setDraft(body.config.harnessRoot ?? '')
-          setPython(body.config.python ?? 'python')
-          setStatus({ status: 'ready', checks: body.checks, error: '' })
+          setStatus({ phase: 'ready', checks: body.checks, message: '', error: '' })
         } catch (error) {
-          setStatus({ status: 'error', checks: null, error: error instanceof Error ? error.message : String(error) })
+          setStatus({ phase: 'error', checks: null, message: '', error: error instanceof Error ? error.message : String(error) })
         }
       }, [])
 
@@ -273,85 +276,111 @@ window.__ModuleLoader__.load({
 
       const save = React.useCallback(async (create = false) => {
         setBusy(true)
-        setNotice('')
         setCanCreate(false)
+        setPickError('')
         try {
           const response = await fetch(WORKSPACE_ROUTE, {
             method: 'POST',
             headers: { 'content-type': 'application/json', accept: 'application/json' },
-            body: JSON.stringify({ harnessRoot: draft, python, create }),
+            body: JSON.stringify({ harnessRoot: draft, create }),
           })
           const body = await response.json()
           if (!response.ok || body.ok !== true) {
             if (body?.code === 'not-found') {
               setCanCreate(true)
-              setNotice(t('workspace.willCreate'))
+              setStatus((current) => ({ ...current, phase: 'ready', message: t('willCreate'), error: '' }))
               return
             }
             throw new Error(body.error ?? `HTTP ${response.status}`)
           }
-          setStatus({ status: 'ready', checks: body.checks, error: '' })
-          setNotice(typeof body.warning === 'string' ? t('workspace.warnNoScript') : t('workspace.saved'))
+          const message = body.created === true ? t('savedEmpty') : typeof body.warning === 'string' ? t('warningNoScript') : t('saved')
+          setStatus({ phase: 'ready', checks: body.checks, message, error: '' })
         } catch (error) {
-          setStatus((current) => ({ ...current, status: 'error', error: error instanceof Error ? error.message : String(error) }))
+          setStatus((current) => ({ ...current, phase: 'error', error: error instanceof Error ? error.message : String(error) }))
         } finally {
           setBusy(false)
         }
-      }, [draft, python, t])
+      }, [draft, t])
 
-      const summary = () => {
-        const checks = status.checks
-        if (checks === null || checks === undefined) return ''
-        if (checks.configured !== true) return t('workspace.unset')
-        return checks.hasScript === true ? t('workspace.ok') : t('workspace.missing')
+      const browse = React.useCallback(async () => {
+        setPickError('')
+        try {
+          const picked = await services?.uiWorkspace?.pickDirectory?.()
+          if (typeof picked === 'string' && picked.length > 0) setDraft(picked)
+        } catch {
+          setPickError(t('workspace.pickFailed'))
+        }
+      }, [t])
+
+      const checks = status.checks
+      const lines = []
+      if (status.phase === 'loading') lines.push(t('loading'))
+      if (checks !== null && checks !== undefined) {
+        lines.push(
+          checks.configured === true
+            ? checks.hasScript === true
+              ? t('workspace.ok')
+              : t('workspace.missing')
+            : t('workspace.unset'),
+        )
       }
+      if (status.message !== '') lines.push(status.message)
+      if (pickError !== '') lines.push(pickError)
+      if (status.error !== '') lines.push(`${t('failed')}: ${status.error}`)
 
       return React.createElement(
         'div',
-        { style: box },
-        React.createElement('div', { style: title }, t('workspace.title')),
-        React.createElement('p', { style: help }, t('workspace.help')),
+        { style: section },
+        React.createElement('div', { style: sectionTitle }, t('workspace.title')),
         React.createElement(
           'div',
-          { style: rowStyle },
+          { style: control },
+          React.createElement('span', { style: fieldLabel }, t('workspace.path')),
           React.createElement('input', {
             style: { ...inputStyle, flex: '1', minWidth: '240px' },
             type: 'text',
-            placeholder: t('workspace.placeholder'),
             value: draft,
             onChange: (event) => setDraft(event.currentTarget.value),
-            disabled: busy || status.status === 'loading',
+            disabled: busy || status.phase === 'loading',
           }),
-          React.createElement('button', { type: 'button', style: buttonStyle, onClick: () => { void save(false) }, disabled: busy || status.status === 'loading' }, busy ? t('workspace.saving') : t('workspace.save')),
+          React.createElement('button', {
+            type: 'button',
+            style: buttonStyle,
+            onClick: () => { void browse() },
+            disabled: busy || status.phase === 'loading',
+          }, t('workspace.browse')),
+          React.createElement('button', {
+            type: 'button',
+            style: buttonStyle,
+            onClick: () => { void save(false) },
+            disabled: busy || status.phase === 'loading',
+          }, busy ? t('saving') : t('save')),
           canCreate
             ? React.createElement('button', {
                 type: 'button',
                 style: buttonStyle,
                 onClick: () => { void save(true) },
                 disabled: busy,
-              }, t('workspace.create'))
+              }, t('create'))
             : null,
-          React.createElement('span', { style: labelStyle }, summary()),
-          notice === '' ? null : React.createElement('span', { style: labelStyle }, notice),
         ),
-        status.error === ''
-          ? null
-          : React.createElement('p', { style: help }, `${t('workspace.error')}: ${status.error}`),
+        lines.length === 0 ? null : React.createElement('p', { style: caption }, lines.join(' · ')),
       )
     }
 
     function apply(ctx) {
       try {
+        services = ctx
         ctx.effect(() => ctx.locale.register(NS, dictionaries), 'fusion-lean: settings dictionaries')
         ctx.slots.inject('settings.general.item', () => ctx.slots.register({
           name: 'settings.general.item',
-          id: ROW_ID,
+          id: ENDPOINT_ROW_ID,
           order: 110,
           locale: NS,
         }, EndpointRow))
         ctx.slots.inject('settings.general.item', () => ctx.slots.register({
           name: 'settings.general.item',
-          id: 'fusion-harness-workspace',
+          id: WORKSPACE_ROW_ID,
           order: 111,
           locale: NS,
         }, WorkspaceRow))
