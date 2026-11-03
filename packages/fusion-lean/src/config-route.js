@@ -9,7 +9,7 @@
  */
 
 import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { resolveEndpoint } from './endpoint.js'
 
@@ -20,6 +20,7 @@ const MAX_BODY = 8 * 1024
 
 const FIELDS = ['host', 'port', 'path', 'url', 'toolCallTimeoutMs']
 const PICK_PATH = '/fusion-lean/pick'
+const LIST_PATH = '/fusion-lean/list'
 const PICK_TIMEOUT_MS = 120000
 
 /**
@@ -323,10 +324,53 @@ export function registerConfigRoute(ctx, getConfig, graphInfo = null) {
     },
   })
 
+  // Some deployments compose only the *browse* capability (no native dialog), so
+  // the page renders its own folder list on top of `list()`. Directories only —
+  // that is what a directory picker returns.
+  const disposeList = webServer.register({
+    kind: 'exact',
+    path: LIST_PATH,
+    handler: async (req, res) => {
+      if (!isLoopback(req)) {
+        send(res, 403, { ok: false, error: 'loopback only' })
+        return
+      }
+      if (req.method !== 'GET') {
+        send(res, 405, { ok: false, error: 'GET' })
+        return
+      }
+      try {
+        const picker = typeof ctx.get === 'function' ? ctx.get('directoryPicker') : ctx.directoryPicker
+        const capability = typeof picker?.capability === 'function' ? picker.capability() : undefined
+        if (capability === undefined || capability.kind !== 'browse' || typeof capability.list !== 'function') {
+          send(res, 501, { ok: false, code: 'unsupported', error: 'this host offers no directory listing' })
+          return
+        }
+        const url = new URL(req.url ?? '/', 'http://x')
+        const requested = url.searchParams.get('path') ?? undefined
+        const listing = await capability.list(requested ?? undefined)
+        const current = typeof listing?.path === 'string' ? listing.path : ''
+        const parent = current === '' ? null : dirname(current)
+        send(res, 200, {
+          ok: true,
+          path: current,
+          home: typeof listing?.home === 'string' ? listing.home : null,
+          parent: parent !== null && parent !== current ? parent : null,
+          entries: Array.isArray(listing?.entries)
+            ? listing.entries.map((entry) => ({ name: entry.name, path: entry.path }))
+            : [],
+        })
+      } catch (error) {
+        send(res, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      }
+    },
+  })
+
   return () => {
     dispose()
     disposeClientStatus()
     disposeWorkspace()
     disposePick()
+    disposeList()
   }
 }

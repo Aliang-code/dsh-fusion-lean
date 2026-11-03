@@ -19,6 +19,7 @@ window.__ModuleLoader__.load({
     const WORKSPACE_ROUTE = '/fusion-lean/workspace'
     const STATUS_ROUTE = '/fusion-lean/client-status'
     const PICK_ROUTE = '/fusion-lean/pick'
+    const LIST_ROUTE = '/fusion-lean/list'
     const NS = 'fusion-lean'
     const inject = ['slots', 'locale', 'uiWorkspace']
 
@@ -55,6 +56,12 @@ window.__ModuleLoader__.load({
         'workspace.ok': '已找到 tools/hf.py',
         'workspace.missing': '没有 tools/hf.py',
         'workspace.pickFailed': '无法打开目录选择器',
+        'workspace.browseFailed': '无法浏览目录',
+        'workspace.up': '上一级',
+        'workspace.useThis': '选择此目录',
+        'workspace.close': '关闭',
+        'workspace.empty': '这里没有子目录',
+        'workspace.suggest': '也可以用「新建」在目标父目录下创建并保存',
         save: '保存',
         saving: '保存中…',
         saved: '已保存（重启 DSH 后生效）',
@@ -79,6 +86,12 @@ window.__ModuleLoader__.load({
         'workspace.ok': 'tools/hf.py found',
         'workspace.missing': 'no tools/hf.py',
         'workspace.pickFailed': 'Could not open the directory picker',
+        'workspace.browseFailed': 'Could not list that directory',
+        'workspace.up': 'Up',
+        'workspace.useThis': 'Use this folder',
+        'workspace.close': 'Close',
+        'workspace.empty': 'No subfolders here',
+        'workspace.suggest': 'You can also use Create to make it under the parent folder',
         save: 'Save',
         saving: 'Saving…',
         saved: 'Saved — restart DSH to apply',
@@ -127,6 +140,32 @@ window.__ModuleLoader__.load({
       font: 'inherit',
       fontSize: '12px',
       cursor: 'pointer',
+    }
+    const panel = {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      padding: '8px',
+      borderRadius: '10px',
+      border: '1px solid var(--dsw-alias-border-l2)',
+      maxHeight: '180px',
+      overflowY: 'auto',
+    }
+    const chips = { display: 'flex', flexWrap: 'wrap', gap: '4px' }
+    const chip = {
+      height: '24px',
+      padding: '0 8px',
+      border: 'none',
+      borderRadius: '12px',
+      background: 'var(--dsw-alias-bg-module-platform)',
+      color: 'var(--dsw-alias-label-primary)',
+      font: 'inherit',
+      fontSize: '12px',
+      cursor: 'pointer',
+      maxWidth: '220px',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     }
 
     function EndpointRow(props) {
@@ -258,6 +297,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const [canCreate, setCanCreate] = React.useState(false)
       const [pickError, setPickError] = React.useState('')
+      const [browser, setBrowser] = React.useState({ open: false, path: '', parent: null, entries: [], error: '' })
 
       const load = React.useCallback(async () => {
         try {
@@ -303,10 +343,26 @@ window.__ModuleLoader__.load({
         }
       }, [draft, t])
 
+      const openBrowser = React.useCallback(async (startPath) => {
+        setPickError('')
+        try {
+          const query = typeof startPath === 'string' && startPath !== '' ? `?path=${encodeURIComponent(startPath)}` : ''
+          const response = await fetch(`${LIST_ROUTE}${query}`, { headers: { accept: 'application/json' } })
+          const body = await response.json().catch(() => ({}))
+          if (!response.ok || body?.ok !== true) {
+            throw new Error(body?.error ?? `HTTP ${response.status}`)
+          }
+          setBrowser({ open: true, path: body.path ?? '', parent: body.parent ?? null, entries: body.entries ?? [], error: '' })
+        } catch (error) {
+          setBrowser({ open: false, path: '', parent: null, entries: [], error: '' })
+          setPickError(`${t('workspace.browseFailed')}: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }, [t])
+
       const browse = React.useCallback(async () => {
         setPickError('')
-        // The host owns the native dialog; the browser backend answers
-        // "unsupported" and the client-side picker takes over.
+        // Prefer the host's native dialog; a browse-only host answers
+        // "unsupported" and the in-row folder list takes over.
         try {
           const response = await fetch(PICK_ROUTE, { method: 'POST', headers: { accept: 'application/json' } })
           const body = await response.json().catch(() => ({}))
@@ -314,20 +370,18 @@ window.__ModuleLoader__.load({
             if (body.cancelled !== true && typeof body.path === 'string' && body.path !== '') setDraft(body.path)
             return
           }
-          if (body?.code !== 'unsupported') throw new Error(body?.error ?? `HTTP ${response.status}`)
+          if (body?.code !== 'unsupported') {
+            setPickError(`${t('workspace.pickFailed')}: ${body?.error ?? `HTTP ${response.status}`}`)
+            return
+          }
         } catch (error) {
           if (!(error instanceof TypeError)) {
             setPickError(`${t('workspace.pickFailed')}: ${error instanceof Error ? error.message : String(error)}`)
             return
           }
         }
-        try {
-          const picked = await services?.uiWorkspace?.pickDirectory?.()
-          if (typeof picked === 'string' && picked.length > 0) setDraft(picked)
-        } catch (error) {
-          setPickError(`${t('workspace.pickFailed')}: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      }, [t])
+        await openBrowser(draft)
+      }, [draft, openBrowser, t])
 
       const checks = status.checks
       const lines = []
@@ -381,6 +435,49 @@ window.__ModuleLoader__.load({
               }, t('create'))
             : null,
         ),
+        browser.open
+          ? React.createElement(
+              'div',
+              { style: panel },
+              React.createElement(
+                'div',
+                { style: chips },
+                React.createElement('code', { style: { ...caption, flex: '1', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: browser.path }, browser.path || '…'),
+                browser.parent === null
+                  ? null
+                  : React.createElement('button', { type: 'button', style: chip, onClick: () => { void openBrowser(browser.parent) } }, `↑ ${t('workspace.up')}`),
+                React.createElement('button', {
+                  type: 'button',
+                  style: chip,
+                  onClick: () => {
+                    if (browser.path !== '') setDraft(browser.path)
+                    setBrowser((current) => ({ ...current, open: false }))
+                  },
+                  disabled: browser.path === '',
+                }, t('workspace.useThis')),
+                React.createElement('button', {
+                  type: 'button',
+                  style: chip,
+                  onClick: () => setBrowser((current) => ({ ...current, open: false })),
+                }, t('workspace.close')),
+              ),
+              browser.entries.length === 0
+                ? React.createElement('p', { style: caption }, t('workspace.empty'))
+                : React.createElement(
+                    'div',
+                    { style: chips },
+                    ...browser.entries.map((entry) =>
+                      React.createElement('button', {
+                        key: entry.path,
+                        type: 'button',
+                        style: chip,
+                        title: entry.path,
+                        onClick: () => { void openBrowser(entry.path) },
+                      }, entry.name),
+                    ),
+                  ),
+            )
+          : null,
         lines.length === 0 ? null : React.createElement('p', { style: caption }, lines.join(' · ')),
       )
     }

@@ -16,11 +16,12 @@ import { registerConfigRoute } from '../src/config-route.js'
 const HARNESS_ROOT = 'D:\\Users\\Aliang\\Desktop\\装修\\接单\\fusion-harness'
 
 class FakeRequest extends EventEmitter {
-  constructor({ method, body, remoteAddress = '127.0.0.1' }) {
+  constructor({ method, body, url, remoteAddress = '127.0.0.1' }) {
     super()
     this.method = method
     this.socket = { remoteAddress }
     this.body = body
+    this.url = url
   }
 
   start() {
@@ -176,6 +177,40 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
   const { routes } = harness(config, undefined)
   const missing = await call(routes, '/fusion-lean/pick', new FakeRequest({ method: 'POST' }))
   check('a host without a picker reports unsupported', missing.status === 501 && missing.body.code === 'unsupported', JSON.stringify(missing.body))
+}
+
+// --- directory browsing (the browse-only capability) ----------------------
+{
+  const HOME = 'D:\\work'
+  const browse = {
+    capability: () => ({
+      kind: 'browse',
+      list: async (requested) => ({
+        path: requested ?? HOME,
+        home: HOME,
+        entries: [{ name: 'fusion-harness', path: `${HOME}\\fusion-harness`, hidden: false }],
+      }),
+    }),
+  }
+  const { routes } = harness(config, browse)
+
+  const listed = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET' }))
+  check('GET /list lists the home directory', listed.status === 200 && listed.body.path === HOME, JSON.stringify(listed.body))
+  check('GET /list returns entries', listed.body.entries?.[0]?.name === 'fusion-harness', JSON.stringify(listed.body.entries))
+  check('GET /list still offers a parent above the home', listed.body.parent === 'D:\\', String(listed.body.parent))
+
+  const sub = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET', url: `/fusion-lean/list?path=${encodeURIComponent(HOME + '\\fusion-harness')}` }))
+  check('GET /list honours the path query', sub.status === 200 && sub.body.path === `${HOME}\\fusion-harness`, JSON.stringify(sub.body))
+  check('GET /list computes the parent', sub.body.parent === HOME, String(sub.body.parent))
+
+  const wrongMethod = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'POST' }))
+  check('POST /list is refused', wrongMethod.status === 405, JSON.stringify(wrongMethod.body))
+}
+{
+  const nativeOnly = { capability: () => ({ kind: 'native', pick: async () => null }) }
+  const { routes } = harness(config, nativeOnly)
+  const unsupported = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET' }))
+  check('a native-only host reports no listing', unsupported.status === 501 && unsupported.body.code === 'unsupported', JSON.stringify(unsupported.body))
 }
 
 // --- shared guards --------------------------------------------------------
