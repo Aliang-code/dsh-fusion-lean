@@ -9,7 +9,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 import { registerConfigRoute } from '../src/config-route.js'
@@ -185,14 +185,15 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
 
 // --- directory browsing (the browse-only capability) ----------------------
 {
-  const HOME = 'D:\\work'
+  const HOME = join(tmpdir(), 'work')
+  const CHILD = join(HOME, 'fusion-harness')
   const browse = {
     capability: () => ({
       kind: 'browse',
       list: async (requested) => ({
         path: requested ?? HOME,
         home: HOME,
-        entries: [{ name: 'fusion-harness', path: `${HOME}\\fusion-harness`, hidden: false }],
+        entries: [{ name: 'fusion-harness', path: CHILD, hidden: false }],
       }),
     }),
   }
@@ -201,10 +202,10 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
   const listed = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET' }))
   check('GET /list lists the home directory', listed.status === 200 && listed.body.path === HOME, JSON.stringify(listed.body))
   check('GET /list returns entries', listed.body.entries?.[0]?.name === 'fusion-harness', JSON.stringify(listed.body.entries))
-  check('GET /list still offers a parent above the home', listed.body.parent === 'D:\\', String(listed.body.parent))
+  check('GET /list still offers a parent above the home', listed.body.parent === dirname(HOME), String(listed.body.parent))
 
-  const sub = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET', url: `/fusion-lean/list?path=${encodeURIComponent(HOME + '\\fusion-harness')}` }))
-  check('GET /list honours the path query', sub.status === 200 && sub.body.path === `${HOME}\\fusion-harness`, JSON.stringify(sub.body))
+  const sub = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'GET', url: `/fusion-lean/list?path=${encodeURIComponent(CHILD)}` }))
+  check('GET /list honours the path query', sub.status === 200 && sub.body.path === CHILD, JSON.stringify(sub.body))
   check('GET /list computes the parent', sub.body.parent === HOME, String(sub.body.parent))
 
   const wrongMethod = await call(routes, '/fusion-lean/list', new FakeRequest({ method: 'POST' }))
