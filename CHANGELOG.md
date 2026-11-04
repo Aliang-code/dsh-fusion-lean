@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1
+
+- Tool descriptions follow the product layout: `hf_build` points at
+  `产品/<产品>/代码/build.py` and `hf_new` at `templates/product`; both still said
+  `parts/` and `templates/part` in 0.9.0.
+- README rewritten around the current shape: install from the registry, the two
+  settings rows, the nine `hf_*` tools, the product folder layout, the release
+  workflow (tag → CI → OIDC), and a troubleshooting table.
+
 ## 0.9.0
 
 - Three file-facing tools join the set, so the whole loop is reachable from the

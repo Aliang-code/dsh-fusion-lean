@@ -95,7 +95,7 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_build',
       description:
-        'Send parts/<part>/build.py into Fusion and return what Fusion reported (hf build). This is the only ' +
+        'Send 产品/<产品>/代码/build.py into Fusion and return what Fusion reported (hf build). This is the only ' +
         'supported way to change geometry: build.py owns the parameters and the feature history.',
       parameters: {
         type: 'object',
@@ -178,8 +178,8 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_new',
       description:
-        'Scaffold a new part directory from templates/part (hf new). Fill in build.py parameters afterwards, ' +
-        'then run hf_verify.',
+        'Scaffold a new product from templates/product (hf new): 产品/<产品>/代码/{build.py, flat.py, spec.py, ' +
+        'expected.json, spec.md, notes.md}. Fill in build.py parameters afterwards, then run hf_verify.',
       parameters: {
         type: 'object',
         properties: {
