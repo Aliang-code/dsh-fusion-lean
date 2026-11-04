@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- Metadata-only release: the repository history was rewritten to fix commit
+  authorship, so 0.9.0/0.9.1 attestations point at commit SHAs that no longer
+  exist. 0.9.2 is the same code, published from the rewritten history, so the
+  provenance chain (tag → commit → tarball) is consistent again.
+
 ## 0.9.1
 
 - Tool descriptions follow the product layout: `hf_build` points at
