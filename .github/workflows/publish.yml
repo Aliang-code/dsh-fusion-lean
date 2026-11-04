@@ -50,6 +50,9 @@ jobs:
           node scripts/harness.test.mjs
 
       - name: The tag must equal the package version
+        # Only a tag carries a version to compare against; a manual rehearsal runs
+        # on a branch name and pivots on the package version instead.
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           pkg="$(node -p "require('./packages/fusion-lean/package.json').version")"
           tag="${GITHUB_REF_NAME#v}"
