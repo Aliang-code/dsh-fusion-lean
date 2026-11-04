@@ -1,4 +1,4 @@
-# fusion-mcp-plugin
+# dsh-fusion-lean
 
 把 DSH 接进 Fusion 建模：**一个 bundle，两行**。
 
