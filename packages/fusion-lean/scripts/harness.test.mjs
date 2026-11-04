@@ -43,14 +43,18 @@ check('hf_probe output mentions the server', /MCP Server Adapter/.test(probe.std
 const verify = await call('hf_verify', { part: 'rack_shelf_1u' })
 check('hf_verify passes on an existing part', verify.ok === true && /PASS/.test(verify.stdout))
 
-// 3. Traversal into a shipped set is refused before anything runs.
-let refused = false
-try {
-  await call('hf_flat', { part: '../deliveries/450/send' })
-} catch (error) {
-  refused = /plain name|refused|AUTHORITY/.test(String(error.message))
+// 3. Traversal into a shipped set is refused before anything runs. The guard
+// matches any path segment named `send`, so it covers both the old layout
+// (deliveries/<type>/send) and the product layout (产品/<产品>/交付/send).
+for (const probe of ['../deliveries/450/send', '../产品/rack_shelf_650/交付/send']) {
+  let refused = false
+  try {
+    await call('hf_flat', { part: probe })
+  } catch (error) {
+    refused = /plain name|refused|AUTHORITY/.test(String(error.message))
+  }
+  check(`path traversal is refused before spawn: ${probe}`, refused)
 }
-check('path traversal is refused before spawn', refused)
 
 // 4. A non-zero exit becomes a tool failure carrying the code and diagnostics.
 let failed = null
@@ -60,7 +64,7 @@ try {
   failed = String(error.message)
 }
 check('unknown part fails the tool call', failed !== null && /exit code 1/.test(failed), failed ?? 'no error')
-check('failure carries the CLI diagnosis', failed !== null && /no such part/.test(failed), failed ?? 'no error')
+check('failure carries the CLI diagnosis', failed !== null && /no such (part|product)/.test(failed), failed ?? 'no error')
 
 // 5. A missing interpreter is reported as such, not as a generic failure.
 const brokenConfig = { ...config, python: 'definitely-not-python-xyz' }
