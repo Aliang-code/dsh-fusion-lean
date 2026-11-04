@@ -8,6 +8,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build and check everything, but do not publish'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -56,4 +61,12 @@ jobs:
 
       - name: Publish
         working-directory: packages/fusion-lean
-        run: npm publish --access public --provenance --registry=https://registry.npmjs.org
+        # A manual run defaults to a dry run, so the workflow can be rehearsed
+        # without burning a version number.
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "dry run: skipping npm publish"
+            npm publish --access public --dry-run --registry=https://registry.npmjs.org
+          else
+            npm publish --access public --provenance --registry=https://registry.npmjs.org
+          fi
