@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.3
+
+- `publish.yml` skips publishing when that exact version is already on the
+  registry, so re-pushing a tag (history rewrite, re-run) reports success instead
+  of `EPUBLISHCONFLICT`. The registry is the source of truth, not the tag.
+
 ## 0.9.2
 
 - Metadata-only release: the repository history was rewritten to fix commit
