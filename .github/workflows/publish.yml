@@ -1,0 +1,59 @@
+name: publish
+
+# Only a version tag publishes. Pushing to a branch runs `ci` and nothing else,
+# so a stray commit can never mint a release, and a re-run of the same tag fails
+# cleanly on "version already exists" instead of silently shipping something new.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # npm Trusted Publishing exchanges this for a short-lived publish token, so no
+  # long-lived npm credential has to sit in the repository at all.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Use an npm that knows Trusted Publishing
+        run: npm install --global npm@latest
+
+      - name: Install workspace dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Tests gate the release
+        working-directory: packages/fusion-lean
+        run: |
+          node scripts/codec.test.mjs
+          node scripts/guard.test.mjs
+          node scripts/endpoint.test.mjs
+          node scripts/drift.test.mjs
+          node scripts/config-route.test.mjs
+          node scripts/client-module.test.mjs
+          node scripts/measure.mjs
+          node scripts/harness.test.mjs
+
+      - name: The tag must equal the package version
+        run: |
+          pkg="$(node -p "require('./packages/fusion-lean/package.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          echo "package=$pkg tag=$tag"
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error::package version ($pkg) does not match tag ($tag) — bump package.json and re-tag"
+            exit 1
+          fi
+
+      - name: Publish
+        working-directory: packages/fusion-lean
+        run: npm publish --access public --provenance --registry=https://registry.npmjs.org
