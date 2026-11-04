@@ -139,7 +139,7 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
 
   // Explicit second step: a typo must never create a folder, so creation needs
   // `create: true` from the user's confirmation.
-  const target = join(process.env.TEMP, `fusion-lean-create-test-${Date.now()}`)
+  const target = join(tmpdir(), `fusion-lean-create-test-${Date.now()}`)
   const created = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: target, create: true }) }))
   check('an explicit create succeeds', created.status === 200 && created.body.created === true, JSON.stringify(created.body))
   check('the directory really exists', existsSync(target))
@@ -149,7 +149,7 @@ const config = { host: '127.0.0.1', port: 27182, path: '/mcp', url: '', toolCall
 
   // The workspace may be cloned after the path is saved, so a missing script is a
   // warning, not a gate — the tool call is where that truth is re-read.
-  const noScript = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: process.env.TEMP }) }))
+  const noScript = await call(routes, '/fusion-lean/workspace', new FakeRequest({ method: 'POST', body: JSON.stringify({ harnessRoot: tmpdir() }) }))
   check('an existing directory without tools/hf.py is accepted', noScript.status === 200 && noScript.body.checks.hasScript === false, JSON.stringify(noScript.body))
   check('… and it comes with an explicit warning', typeof noScript.body.warning === 'string' && /tools\/hf\.py/.test(noScript.body.warning), JSON.stringify(noScript.body.warning))
 
