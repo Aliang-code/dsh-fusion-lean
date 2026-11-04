@@ -37,7 +37,7 @@ export function assertNotShipped(artifacts) {
   for (const artifact of artifacts) {
     if (PROTECTED_PATH.test(artifact)) {
       throw new Error(
-        `refused: this run would write ${artifact}, which sits in a shipped set (deliveries/<type>/send/). ` +
+        `refused: this run would write ${artifact}, which sits in a shipped set (产品/<产品>/交付/send/). ` +
           `That authority belongs to a human update, not a tool call — see ${AUTHORITY}.`,
       )
     }

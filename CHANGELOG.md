@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+- Three file-facing tools join the set, so the whole loop is reachable from the
+  agent: `hf_model` (export `模型.f3d` from the open design), `hf_stl` (export
+  `外形.stl`) and `hf_doc` (rewrite the product `说明.md`).
+- Tool descriptions follow the product layout the harness now uses
+  (`产品/<产品>/{代码,生成物,交付}`) instead of the old `parts/` + `deliveries/`.
+- Publish from CI: `.github/workflows/publish.yml` runs the suites and publishes on
+  a `v*` tag through npm Trusted Publishing, with provenance and no stored token.
+
 ## 0.8.0
 
 - Rename to `@aliangbaby/dsh-fusion-lean` and prepare for the public registry.

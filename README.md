@@ -5,7 +5,7 @@
 | 行 | 作用 | 前置条件 |
 |---|---|---|
 | `fusion-lean` | 接 Fusion 自带的 MCP 服务：`fusion_read` / `fusion_execute` / `fusion_update` / `fusion_electronics_read`，加 `fusion_help`、`fusion_status`、不可逆动作门禁、可编辑端点 | Fusion 在跑，**无 Python 依赖** |
-| `fusion-harness` | 把 `fusion-harness` 的 `hf.py` 包成 `hf_probe` / `hf_build` / `hf_run` / `hf_flat` / `hf_verify` / `hf_new` | 本机 `python`（3.10+）+ `harnessRoot` 配置 |
+| `fusion-harness` | 把 `fusion-harness` 的 `hf.py` 包成 `hf_probe` / `hf_build` / `hf_run` / `hf_flat` / `hf_verify` / `hf_new` / `hf_model` / `hf_stl` / `hf_doc` | 本机 `python`（3.10+）+ `harnessRoot` 配置 |
 
 两行在同一个包里，安装一次、插件列表只出现一个条目；**停用其中一行，另一行照常工作**。`fusion-harness` 没有配置 `harnessRoot` 时只记一条警告并跳过注册，不会拖垮 `fusion-lean`。
 
@@ -80,7 +80,7 @@ GUI：侧栏「插件」→「添加插件」→ 填包名或 tarball 路径。
 
 - **`fusion_execute` 能在你的 Fusion 进程里运行任意 Python**，拥有你的用户权限：可以删改模型、读写本机文件、发网络请求。它不在 DSH 的文件/命令沙箱内。
 - **`127.0.0.1:27182` 没有鉴权**，本机任何进程都能直连并驱动你的 Fusion；本插件不改变这一点。
-- 因此本插件只做两件收窄：`document.close` 与 `purchase` 在分发前需要**一次人工确认**（无应答者时按拒绝关闭）；`hf_*` 工具拒绝任何可能写入 `deliveries/*/send/` 的调用（路径穿越在启动子进程之前就被拒）。
+- 因此本插件只做两件收窄：`document.close` 与 `purchase` 在分发前需要**一次人工确认**（无应答者时按拒绝关闭）；`hf_*` 工具拒绝任何可能写入 `产品/<产品>/交付/send/` 的调用（路径穿越在启动子进程之前就被拒）。
 
 ## 可复核的数字
 

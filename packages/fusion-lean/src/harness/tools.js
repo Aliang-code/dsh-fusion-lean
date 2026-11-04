@@ -79,7 +79,7 @@ function tool({ toolName, description, parameters, execute }) {
 
 const PART_PARAMETER = {
   type: 'string',
-  description: 'Part directory name under parts/ (a plain name, no path separators).',
+  description: '产品目录名 under 产品/ (a plain name, no path separators).',
 }
 
 export function buildHarnessTools(config) {
@@ -135,13 +135,14 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_flat',
       description:
-        'Regenerate the flat pattern (DXF/SVG) for a part on the host side, without Fusion (hf flat). Writes ' +
-        'under build/ by default; deliver:true writes deliveries/<type>/dxf|drawings and never the shipped set.',
+        'Regenerate the flat pattern (DXF/SVG) for a product on the host side, without Fusion (hf flat). Writes ' +
+        'under 产品/<产品>/生成物/ by default; deliver:true writes 产品/<产品>/交付/dxf|drawings and never the ' +
+        'shipped set.',
       parameters: {
         type: 'object',
         properties: {
           part: PART_PARAMETER,
-          deliver: { type: 'boolean', description: 'Write into deliveries/<type>/dxf|drawings instead of build/.' },
+          deliver: { type: 'boolean', description: 'Write into 产品/<产品>/交付/dxf|drawings instead of 生成物/.' },
         },
         required: ['part'],
         additionalProperties: false,
@@ -196,6 +197,55 @@ export function buildHarnessTools(config) {
         if (args.sku !== undefined) argv.push('--sku', args.sku)
         if (args.delivery !== undefined) argv.push('--delivery', args.delivery)
         return invoke(config, argv, (result) => assertNotShipped(result.artifacts))
+      },
+    }),
+    tool({
+      toolName: 'hf_model',
+      description:
+        'Export 产品/<产品>/模型.f3d from the open Fusion design (hf model). This is the file a person opens by ' +
+        'double-clicking; run hf_build first so the design is the one on screen.',
+      parameters: {
+        type: 'object',
+        properties: { part: PART_PARAMETER },
+        required: ['part'],
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        assertPlainName('part', args.part)
+        return invoke(config, ['model', args.part])
+      },
+    }),
+    tool({
+      toolName: 'hf_stl',
+      description:
+        'Export 产品/<产品>/外形.stl from the open Fusion design (hf stl), binary and high refinement. This is ' +
+        'the mesh a viewer or printer wants.',
+      parameters: {
+        type: 'object',
+        properties: { part: PART_PARAMETER },
+        required: ['part'],
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        assertPlainName('part', args.part)
+        return invoke(config, ['stl', args.part])
+      },
+    }),
+    tool({
+      toolName: 'hf_doc',
+      description:
+        'Rewrite 产品/<产品>/说明.md (hf doc): the original requirement, the current numbers, the folder map ' +
+        'and the evolution notes, gathered from 代码/spec.md, 代码/expected.json and 代码/notes.md. hf_build and ' +
+        'hf_verify already refresh it, so call this after editing those files by hand.',
+      parameters: {
+        type: 'object',
+        properties: { part: PART_PARAMETER },
+        required: ['part'],
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        assertPlainName('part', args.part)
+        return invoke(config, ['doc', args.part])
       },
     }),
   ]

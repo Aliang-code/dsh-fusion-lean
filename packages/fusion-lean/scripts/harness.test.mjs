@@ -56,6 +56,14 @@ for (const probe of ['../deliveries/450/send', '../产品/rack_shelf_650/交付/
   check(`path traversal is refused before spawn: ${probe}`, refused)
 }
 
+// 3b. The three file-facing tools exist and hf_doc rewrites the product readme.
+const names = [...tools.keys()]
+for (const name of ['hf_model', 'hf_stl', 'hf_doc']) {
+  check(`the tool set includes ${name}`, names.includes(name), names.join(','))
+}
+const doc = await call('hf_doc', { part: 'rack_shelf_1u' })
+check('hf_doc rewrites 说明.md', doc.ok === true && /说明\.md/.test(doc.stdout), doc.stdout.slice(0, 120))
+
 // 4. A non-zero exit becomes a tool failure carrying the code and diagnostics.
 let failed = null
 try {
