@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4
+
+- `hf_build` now says what it actually does since 0.9.0's harness change: one call closes stale documents,
+  builds in a clean one, exports 模型.f3d + 外形.stl, and closes the document again — so Fusion stops
+  accumulating windows.
+- New `hf_build` options: `keepOpen` (leave the document open, needed before `hf_model` / `hf_stl` / `hf_run`)
+  and `noArtifacts` (skip the exports).
+- `hf_model` / `hf_stl` descriptions say they re-export from the document that is open right now.
+
 ## 0.9.3
 
 - `publish.yml` skips publishing when that exact version is already on the

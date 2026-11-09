@@ -95,17 +95,32 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_build',
       description:
-        'Send 产品/<产品>/代码/build.py into Fusion and return what Fusion reported (hf build). This is the only ' +
-        'supported way to change geometry: build.py owns the parameters and the feature history.',
+        'Build 产品/<产品>/代码/build.py inside Fusion (hf build). One call does the whole cycle: it closes stale ' +
+        'harness documents, opens a clean one, runs build.py, exports 模型.f3d and 外形.stl, and closes the ' +
+        'document again — so Fusion never accumulates windows and nothing is lost. This is the only supported way ' +
+        'to change geometry: build.py owns the parameters and the feature history.',
       parameters: {
         type: 'object',
-        properties: { part: PART_PARAMETER },
+        properties: {
+          part: PART_PARAMETER,
+          keepOpen: {
+            type: 'boolean',
+            description: 'Leave the Fusion document open after the build (default: close it). Needed before hf_model / hf_stl / hf_run.',
+          },
+          noArtifacts: {
+            type: 'boolean',
+            description: 'Skip exporting 模型.f3d / 外形.stl (the build still runs and the document still closes).',
+          },
+        },
         required: ['part'],
         additionalProperties: false,
       },
       execute: async (args) => {
         assertPlainName('part', args.part)
-        return invoke(config, ['build', args.part], (result) => assertNotShipped(result.artifacts))
+        const argv = ['build', args.part]
+        if (args.keepOpen === true) argv.push('--keep-open')
+        if (args.noArtifacts === true) argv.push('--no-artifacts')
+        return invoke(config, argv, (result) => assertNotShipped(result.artifacts))
       },
     }),
     tool({
@@ -202,8 +217,9 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_model',
       description:
-        'Export 产品/<产品>/模型.f3d from the open Fusion design (hf model). This is the file a person opens by ' +
-        'double-clicking; run hf_build first so the design is the one on screen.',
+        'Re-export 产品/<产品>/模型.f3d from the design that is open right now (hf model). hf_build already ' +
+        'exports it, so this is for the case where you changed something in Fusion and want the file refreshed: ' +
+        'run hf_build with keepOpen first, otherwise there is no document to export.',
       parameters: {
         type: 'object',
         properties: { part: PART_PARAMETER },
@@ -218,8 +234,8 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_stl',
       description:
-        'Export 产品/<产品>/外形.stl from the open Fusion design (hf stl), binary and high refinement. This is ' +
-        'the mesh a viewer or printer wants.',
+        'Re-export 产品/<产品>/外形.stl from the design that is open right now (hf stl), binary and high ' +
+        'refinement. hf_build already exports it; use this after a manual change, with hf_build keepOpen first.',
       parameters: {
         type: 'object',
         properties: { part: PART_PARAMETER },
