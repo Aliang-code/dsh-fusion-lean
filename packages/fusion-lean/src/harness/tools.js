@@ -150,30 +150,51 @@ export function buildHarnessTools(config) {
     tool({
       toolName: 'hf_flat',
       description:
-        'Regenerate the flat pattern (DXF/SVG) for a product on the host side, without Fusion (hf flat). Writes ' +
-        'under 产品/<产品>/生成物/ by default; deliver:true writes 产品/<产品>/交付/dxf|drawings and never the ' +
-        'shipped set.',
+        'Regenerate the flat pattern (DXF/SVG) for a product on the host side, without Fusion (hf flat). Everything ' +
+        'lands in 产品/<产品>/生成物/, which is the single working copy; 交付/ only holds the shipped evidence ' +
+        '(send/), the factory drawings and dated packages — use hf_pack to make one.',
       parameters: {
         type: 'object',
         properties: {
           part: PART_PARAMETER,
-          deliver: { type: 'boolean', description: 'Write into 产品/<产品>/交付/dxf|drawings instead of 生成物/.' },
         },
         required: ['part'],
         additionalProperties: false,
       },
       execute: async (args) => {
         assertPlainName('part', args.part)
-        const argv = ['flat', args.part]
-        if (args.deliver === true) argv.push('--deliver')
+        return invoke(config, ['flat', args.part], (result) => assertNotShipped(result.artifacts))
+      },
+    }),
+    tool({
+      toolName: 'hf_pack',
+      description:
+        'Bundle the current 产品/<产品>/生成物/ into a dated delivery package 产品/<产品>/交付/<日期>_<说明>/ plus a ' +
+        '.zip (hf pack). Use it when a batch is ready to send; 交付/send itself stays a human decision.',
+      parameters: {
+        type: 'object',
+        properties: {
+          part: PART_PARAMETER,
+          name: { type: 'string', description: 'Package label, e.g. 450托盘本体. Defaults to 发货.' },
+          noZip: { type: 'boolean', description: 'Create the folder only, skip the .zip.' },
+        },
+        required: ['part'],
+        additionalProperties: false,
+      },
+      execute: async (args) => {
+        assertPlainName('part', args.part)
+        const argv = ['pack', args.part]
+        if (typeof args.name === 'string' && args.name.length > 0) argv.push('--name', args.name)
+        if (args.noZip === true) argv.push('--no-zip')
         return invoke(config, argv, (result) => assertNotShipped(result.artifacts))
       },
     }),
     tool({
       toolName: 'hf_verify',
       description:
-        'Compare a part against its expected.json and the shipped DXF byte-for-byte (hf verify). This is the ' +
-        'acceptance check: PASS means geometry and delivered files agree.',
+        'Compare a part against its expected.json and against 产品/<产品>/交付/send (hf verify). Sizes are measured ' +
+        'from the generated DXF; the byte comparison ignores DXF timestamps and fingerprint GUIDs, so it says ' +
+        'whether the geometry changed. PASS means the current code matches what was actually shipped.',
       parameters: {
         type: 'object',
         properties: {

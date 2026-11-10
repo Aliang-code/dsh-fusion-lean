@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.5
+
+- `hf_pack` joins the tools: bundles the current `生成物/` into a dated
+  `交付/<date>_<label>/` folder plus a `.zip`, so a delivery batch is one command.
+- `hf_flat` no longer offers `deliver`: `交付/` now holds only the shipped evidence
+  (`send/`), the factory drawings and dated packages. The harness rejects the flag
+  and points at `hf_pack`.
+- `hf_verify` compares against `交付/send` and ignores DXF timestamps and
+  fingerprint GUIDs, so "DRIFTED" means the geometry changed — not that the file
+  was regenerated a second later.
+
 ## 0.9.4
 
 - `hf_build` now says what it actually does since 0.9.0's harness change: one call closes stale documents,
