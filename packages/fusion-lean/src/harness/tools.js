@@ -7,7 +7,26 @@
  * to mistake for success.
  */
 
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { join } from 'node:path'
+
 import { assertNotShipped, assertPlainName, runHf } from './hf.js'
+
+const requirePeer = createRequire(import.meta.url)
+
+/**
+ * `@deepseek-ai/dsh-mcp-client` is a peer: the host always has it, a bare checkout
+ * and CI do not. Loading it lazily keeps the suite runnable without the host while
+ * still using its canonical shape — the only path that stores images durably.
+ */
+function loadMcpClient() {
+  try {
+    return requirePeer('@deepseek-ai/dsh-mcp-client')
+  } catch {
+    return undefined
+  }
+}
 
 const RESULT_SCHEMA = {
   type: 'object',
@@ -82,7 +101,142 @@ const PART_PARAMETER = {
   description: '产品目录名 under 产品/ (a plain name, no path separators).',
 }
 
-export function buildHarnessTools(config) {
+/** The PNG a run just wrote, as an absolute path (hf records it relative to the workspace). */
+function artifactImage(config, result) {
+  const png = (result.artifacts ?? []).find((path) => /\.png$/i.test(path))
+  if (png === undefined) return undefined
+  return join(config.harnessRoot, png)
+}
+
+/** Image + caption blocks, or a text block when the file cannot be read. */
+function imageBlocks(path, caption) {
+  try {
+    return [
+      { type: 'image', data: readFileSync(path).toString('base64'), mimeType: 'image/png' },
+      { type: 'text', text: caption },
+    ]
+  } catch (error) {
+    return [{ type: 'text', text: `${caption}\n(cannot read the screenshot: ${error.message})` }]
+  }
+}
+
+/**
+ * A tool that returns image content goes through the MCP client's canonical shape,
+ * which is the only path that stores an image durably. Without a host context
+ * (unit tests) it degrades to the plain text tool.
+ */
+function canonicalTool(config, ctx, spec) {
+  const client = ctx !== undefined && ctx !== null && typeof ctx === 'object' ? loadMcpClient() : undefined
+  if (client !== undefined && typeof client.createMcpToolDefinition === 'function') {
+    return client.createMcpToolDefinition(ctx, spec)
+  }
+  return tool({
+    toolName: spec.name,
+    description: spec.description,
+    parameters: spec.inputSchema,
+    execute: async (args) => {
+      const result = await spec.call(args ?? {}, {})
+      const text = (result.content ?? [])
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n')
+      return { command: spec.name, ok: true, exitCode: 0, stdout: text, stderr: '', artifacts: [] }
+    },
+  })
+}
+
+/**
+ * Build, and by default look at the result: the shot is taken before the document
+ * closes, so the model never has to guess what the geometry became.
+ */
+function buildTool(config, ctx) {
+  return canonicalTool(config, ctx, {
+    name: 'hf_build',
+    rawName: 'hf_build',
+    description:
+      'Build 产品/<产品>/代码/build.py inside Fusion (hf build). One call does the whole cycle: it closes stale ' +
+      'harness documents, opens a clean one, runs build.py, exports 模型.f3d and 外形.stl, then — unless shot:false ' +
+      '— renders an iso screenshot and returns it as an image before closing the document again. Numbers come from ' +
+      'the script, the picture comes from Fusion; use both.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        part: PART_PARAMETER,
+        keepOpen: { type: 'boolean', description: 'Leave the Fusion document open (needed before hf_shot / hf_run).' },
+        noArtifacts: { type: 'boolean', description: 'Skip exporting 模型.f3d / 外形.stl.' },
+        shot: { type: 'boolean', description: 'Render an iso screenshot and return it as an image (default true).' },
+      },
+      required: ['part'],
+      additionalProperties: false,
+    },
+    call: async (args) => {
+      assertPlainName('part', args.part)
+      const wantShot = args.shot !== false
+      const argv = ['build', args.part]
+      if (args.keepOpen === true || wantShot) argv.push('--keep-open')
+      if (args.noArtifacts === true) argv.push('--no-artifacts')
+
+      const built = await runHf(config, argv)
+      if (!built.ok) throw new Error(failure(built))
+
+      const blocks = []
+      if (wantShot) {
+        const shot = await runHf(config, [
+          'shot', `build_${args.part}`, '--part', args.part, '--view', 'iso',
+          '--width', '1100', '--height', '740',
+        ])
+        if (shot.ok) {
+          const file = artifactImage(config, shot)
+          if (file !== undefined) blocks.push(...imageBlocks(file, `截图（iso）：${file}`))
+        } else {
+          blocks.push({ type: 'text', text: `截图失败：${(shot.stderr || shot.stdout || '').slice(0, 400)}` })
+        }
+        if (args.keepOpen !== true) await runHf(config, ['close', args.part])
+      }
+
+      blocks.push({ type: 'text', text: renderResult(built).map((part) => part.text).join('\n') })
+      return { content: blocks }
+    },
+  })
+}
+
+/** Screenshot the document that is open right now, from a chosen view. */
+function shotTool(config, ctx) {
+  return canonicalTool(config, ctx, {
+    name: 'hf_shot',
+    rawName: 'hf_shot',
+    description:
+      'Screenshot the Fusion design that is open right now and return it as an image (hf shot). Needs an open ' +
+      'document — run hf_build with keepOpen:true first, or hf_run activate.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        part: PART_PARAMETER,
+        view: { type: 'string', description: 'Camera view: iso (default), front, top, left, right…' },
+        name: { type: 'string', description: 'File stem under 生成物/ (default view_<part>).' },
+        width: { type: 'number', description: 'Pixels, default 1100.' },
+        height: { type: 'number', description: 'Pixels, default 740.' },
+      },
+      required: ['part'],
+      additionalProperties: false,
+    },
+    call: async (args) => {
+      assertPlainName('part', args.part)
+      const stem = typeof args.name === 'string' && args.name.length > 0 ? args.name : `view_${args.part}`
+      const argv = ['shot', stem, '--part', args.part, '--view', typeof args.view === 'string' ? args.view : 'iso']
+      if (typeof args.width === 'number') argv.push('--width', String(Math.round(args.width)))
+      if (typeof args.height === 'number') argv.push('--height', String(Math.round(args.height)))
+
+      const result = await runHf(config, argv)
+      if (!result.ok) throw new Error(failure(result))
+      const file = artifactImage(config, result)
+      if (file === undefined) return { content: renderResult(result) }
+      return { content: imageBlocks(file, `截图（${argv[4] ?? 'iso'}）：${file}`) }
+    },
+  })
+}
+
+export function buildHarnessTools(config, ctx) {
   return [
     tool({
       toolName: 'hf_probe',
@@ -92,37 +246,8 @@ export function buildHarnessTools(config) {
       parameters: { type: 'object', properties: {}, additionalProperties: false },
       execute: async () => invoke(config, ['probe']),
     }),
-    tool({
-      toolName: 'hf_build',
-      description:
-        'Build 产品/<产品>/代码/build.py inside Fusion (hf build). One call does the whole cycle: it closes stale ' +
-        'harness documents, opens a clean one, runs build.py, exports 模型.f3d and 外形.stl, and closes the ' +
-        'document again — so Fusion never accumulates windows and nothing is lost. This is the only supported way ' +
-        'to change geometry: build.py owns the parameters and the feature history.',
-      parameters: {
-        type: 'object',
-        properties: {
-          part: PART_PARAMETER,
-          keepOpen: {
-            type: 'boolean',
-            description: 'Leave the Fusion document open after the build (default: close it). Needed before hf_model / hf_stl / hf_run.',
-          },
-          noArtifacts: {
-            type: 'boolean',
-            description: 'Skip exporting 模型.f3d / 外形.stl (the build still runs and the document still closes).',
-          },
-        },
-        required: ['part'],
-        additionalProperties: false,
-      },
-      execute: async (args) => {
-        assertPlainName('part', args.part)
-        const argv = ['build', args.part]
-        if (args.keepOpen === true) argv.push('--keep-open')
-        if (args.noArtifacts === true) argv.push('--no-artifacts')
-        return invoke(config, argv, (result) => assertNotShipped(result.artifacts))
-      },
-    }),
+    buildTool(config, ctx),
+    shotTool(config, ctx),
     tool({
       toolName: 'hf_run',
       description:

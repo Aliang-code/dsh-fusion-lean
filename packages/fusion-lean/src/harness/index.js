@@ -36,7 +36,7 @@ export function apply(ctx, rowConfig) {
   }
 
   const disposers = []
-  for (const definition of buildHarnessTools(config)) {
+  for (const definition of buildHarnessTools(config, ctx)) {
     disposers.push(ctx.tools.register(definition))
   }
   ctx.logger?.info?.(`fusion-harness: ${disposers.length} tools against ${config.harnessRoot}`)

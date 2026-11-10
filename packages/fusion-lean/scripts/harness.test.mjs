@@ -58,7 +58,7 @@ for (const probe of ['../deliveries/450/send', '../产品/rack_shelf_650/交付/
 
 // 3b. The three file-facing tools exist and hf_doc rewrites the product readme.
 const names = [...tools.keys()]
-for (const name of ['hf_model', 'hf_stl', 'hf_doc']) {
+for (const name of ['hf_model', 'hf_stl', 'hf_doc', 'hf_shot', 'hf_pack']) {
   check(`the tool set includes ${name}`, names.includes(name), names.join(','))
 }
 const doc = await call('hf_doc', { part: 'rack_shelf_1u' })

@@ -1,6 +1,6 @@
 {
   "name": "@aliangbaby/dsh-fusion-lean",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": false,
   "type": "module",
   "description": "Fusion for DSH in one bundle: the upstream MCP tools with their exact schemas and an editable endpoint, plus the fusion-harness CLI bridged as tools.",

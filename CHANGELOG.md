@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.6
+
+- Visual verification is now part of the loop: `hf_build` renders an iso screenshot
+  before it closes the document and returns it as an image, so the model sees what
+  Fusion actually built instead of trusting the script's numbers alone
+  (`shot:false` opts out, `keepOpen:true` leaves the document open).
+- New `hf_shot` tool: screenshot the open document from any view and return the
+  image, for checking a back side or a second angle.
+- Tools that return images use the MCP client's canonical shape; without a host
+  context they degrade to the plain text tool, so the suite still runs in CI.
+
 ## 0.9.5
 
 - `hf_pack` joins the tools: bundles the current `生成物/` into a dated
