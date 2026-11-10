@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.7
+
+- `hf_doc` now writes two files per product: `说明.md` for people and `AGENTS.md`
+  for agents (rules, acceptance criteria, off-limits paths). The harness generates
+  both from `spec.md` / `expected.json` / `notes.md`, so they cannot drift apart.
+
 ## 0.9.6
 
 - Visual verification is now part of the loop: `hf_build` renders an iso screenshot

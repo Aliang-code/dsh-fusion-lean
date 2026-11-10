@@ -396,9 +396,10 @@ export function buildHarnessTools(config, ctx) {
     tool({
       toolName: 'hf_doc',
       description:
-        'Rewrite 产品/<产品>/说明.md (hf doc): the original requirement, the current numbers, the folder map ' +
-        'and the evolution notes, gathered from 代码/spec.md, 代码/expected.json and 代码/notes.md. hf_build and ' +
-        'hf_verify already refresh it, so call this after editing those files by hand.',
+        'Rewrite the product documentation (hf doc): 产品/<产品>/说明.md for people (a one-paragraph summary, the ' +
+        'current numbers, the folder map) and 产品/<产品>/AGENTS.md for agents (what to read, what may be edited, ' +
+        'how acceptance is judged, what is off-limits). hf_build and hf_verify already refresh both, so call this ' +
+        'after editing 代码/spec.md, 代码/expected.json or 代码/notes.md by hand.',
       parameters: {
         type: 'object',
         properties: { part: PART_PARAMETER },
